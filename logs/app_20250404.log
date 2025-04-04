@@ -1,0 +1,58 @@
+2025-04-04 14:09:21,102 - app - INFO - Starting application initialization...
+2025-04-04 14:09:21,104 - app - INFO - Initializing database...
+2025-04-04 14:09:21,653 - app - INFO - Creating required directories...
+2025-04-04 14:09:21,653 - app - INFO - Creating database tables...
+2025-04-04 14:09:21,665 - app - ERROR - Error during application startup: (mysql.connector.errors.ProgrammingError) 1049 (42000): Unknown database 'facial_recognition'
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2025-04-04 14:10:17,852 - app - INFO - Starting application initialization...
+2025-04-04 14:10:17,855 - app - INFO - Initializing database...
+2025-04-04 14:10:17,921 - app - INFO - Creating required directories...
+2025-04-04 14:10:17,922 - app - INFO - Creating database tables...
+2025-04-04 14:10:17,974 - app - INFO - Registering blueprints...
+2025-04-04 14:10:17,980 - app - INFO - Application startup completed successfully
+2025-04-04 14:10:27,798 - app - INFO - Starting application initialization...
+2025-04-04 14:10:27,800 - app - INFO - Initializing database...
+2025-04-04 14:10:27,868 - app - INFO - Creating required directories...
+2025-04-04 14:10:27,868 - app - INFO - Creating database tables...
+2025-04-04 14:10:27,884 - app - INFO - Registering blueprints...
+2025-04-04 14:10:27,889 - app - INFO - Application startup completed successfully
+2025-04-04 14:10:27,995 - app - INFO - Received GET request to /
+2025-04-04 14:10:27,996 - app - INFO - Important Headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36', 'Content-Type': None}
+2025-04-04 14:10:28,012 - app - ERROR - Unhandled exception: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+Traceback (most recent call last):
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/app.py", line 891, in dispatch_request
+    self.raise_routing_exception(req)
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/app.py", line 500, in raise_routing_exception
+    raise request.routing_exception  # type: ignore[misc]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/ctx.py", line 362, in match_request
+    result = self.url_adapter.match(return_rule=True)  # type: ignore
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/werkzeug/routing/map.py", line 629, in match
+    raise NotFound() from None
+werkzeug.exceptions.NotFound: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+2025-04-04 14:10:28,042 - app - INFO - Response status: 500 INTERNAL SERVER ERROR
+2025-04-04 14:10:28,042 - app - INFO - Response size: 39 bytes
+2025-04-04 14:10:57,506 - app - ERROR - Unhandled exception: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+Traceback (most recent call last):
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/app.py", line 891, in dispatch_request
+    self.raise_routing_exception(req)
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/app.py", line 500, in raise_routing_exception
+    raise request.routing_exception  # type: ignore[misc]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/flask/ctx.py", line 362, in match_request
+    result = self.url_adapter.match(return_rule=True)  # type: ignore
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/gradproject/.venv/lib/python3.11/site-packages/werkzeug/routing/map.py", line 629, in match
+    raise NotFound() from None
+werkzeug.exceptions.NotFound: 404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.
+2025-04-04 14:11:05,092 - app - INFO - Received GET request to /api/health
+2025-04-04 14:11:05,092 - app - INFO - Important Headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36', 'Content-Type': None}
+2025-04-04 14:11:05,093 - app - INFO - Response status: 200 OK
+2025-04-04 14:11:05,093 - app - INFO - Response size: 110 bytes
