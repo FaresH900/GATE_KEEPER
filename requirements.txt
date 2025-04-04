@@ -1,0 +1,28 @@
+# Dev environment
+pip
+autopep8
+
+# App
+flask
+flask-sqlalchemy 
+mysql-connector-python
+
+numpy
+requests
+pillow
+
+#plate_model
+ultralytics
+paddleocr
+paddlepaddle
+
+
+#facial recognition
+torch
+torchaudio
+facenet-pytorch
+torchvision
+matplotlib
+pyyaml
+
+pymysql
