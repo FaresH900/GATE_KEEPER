@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 import os
 import numpy as np 
+from datetime import datetime, timedelta  
+import pickle
 from app.config import Config
 from app.models.license_plate_recognizer import LicensePlateRecognizer
 from app.models.facial_recognition import FacialRecognition
@@ -60,13 +62,21 @@ def recognize_plate():
 
     return jsonify({'error': 'Invalid file type'}), 400
 
-
 @api.route('/add_guest', methods=['POST'])
 def add_guest():
     try:
         name = request.form.get('name')
         if not name:
             return jsonify({'error': 'Name is required'}), 400
+
+        # Get end date for invitation (optional)
+        end_date_str = request.form.get('end_date')
+        end_date = None
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        else:
+            # Default to 1 day invitation
+            end_date = datetime.now() + timedelta(days=1)
 
         # Get image data
         if 'image' in request.files:
@@ -79,8 +89,8 @@ def add_guest():
         # Generate embedding
         embedding = facial_recognition.generate_embedding(image_data)
         
-        # Try to add guest
-        result = Guest.add_guest(name, embedding)
+        # Save to database
+        result = Guest.add_guest(name, embedding, end_date)
         
         return jsonify({
             'status': result['status'],
@@ -88,20 +98,20 @@ def add_guest():
             'guest': {
                 'id': result['guest'].id,
                 'name': result['guest'].name,
-                'status': result['guest'].status.value,
-                'created_at': result['guest'].created_at.isoformat()
-            },
-            'history': [
-                {
-                    'timestamp': h.timestamp.isoformat()
-                } for h in result['guest'].history
-            ] if 'history' in result else []
+                'created_at': result['guest'].created_at.isoformat(),
+                'current_invitation': {
+                    'id': result['invitation'].id if 'invitation' in result else None,
+                    'start_date': result['invitation'].start_date.isoformat() if 'invitation' in result else None,
+                    'end_date': result['invitation'].end_date.isoformat() if 'invitation' in result else None,
+                    'status': result['invitation'].status.value if 'invitation' in result else None
+                } if 'invitation' in result else None
+            }
         }), 200
 
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @api.route('/validate_face', methods=['POST'])
 def validate_face():
@@ -114,50 +124,75 @@ def validate_face():
             if not image_data:
                 return jsonify({'error': 'Image is required'}), 400
 
-        # Get optional status update
-        new_status = request.form.get('status')
-        
         # Generate embedding
         test_embedding = facial_recognition.generate_embedding(image_data)
         
-        # Find match
-        best_match, distance = Guest.find_match(test_embedding)
-        
-        if best_match:
+        # Find match using the method from Guest model
+        guests = Guest.query.all()
+        min_distance = float('inf')
+        best_match = None
+
+        for guest in guests:
+            stored_embedding = pickle.loads(guest.embedding)
+            distance = np.linalg.norm(test_embedding - stored_embedding)
+            if distance < min_distance:
+                min_distance = distance
+                best_match = guest
+
+        threshold = 0.8
+        if min_distance < threshold and best_match:
+            # Get current invitation
+            current_invitation = best_match.get_current_invitation()
+            
+            if not current_invitation:
+                return jsonify({
+                    'name': best_match.name,
+                    'status': 'no_active_invitation',
+                    'message': 'No active invitation found',
+                    'distance': float(min_distance)
+                }), 200
+
+            # Handle status update if requested
+            new_status = request.form.get('status')
             status_updated = False
             status_message = "Face recognized"
 
-            # Check current status and handle accordingly
-            if new_status:
-                if best_match.status == GuestStatus.ALLOWED and new_status == 'allowed':
-                    status_message = "Guest is already allowed"
-                else:
-                    status_updated = best_match.update_status(GuestStatus(new_status))
-                    status_message = "Status updated to " + new_status if status_updated else "Status unchanged"
+            if new_status and new_status in [status.value for status in GuestStatus]:
+                status_updated, status_message = best_match.update_invitation_status(
+                    current_invitation.id,
+                    GuestStatus(new_status)
+                )
 
             return jsonify({
                 'name': best_match.name,
-                'status': best_match.status.value,
+                'current_invitation': {
+                    'id': current_invitation.id,
+                    'start_date': current_invitation.start_date.isoformat(),
+                    'end_date': current_invitation.end_date.isoformat(),
+                    'status': current_invitation.status.value
+                },
                 'status_message': status_message,
                 'status_updated': status_updated,
-                'distance': float(distance),
-                'history': [
-                    {
-                        'timestamp': h.timestamp.isoformat()
-                    } for h in best_match.history
-                ]
+                'distance': float(min_distance),
+                'history': [{
+                    'timestamp': h.timestamp.isoformat(),
+                    'invitation_id': h.invitation_id
+                } for h in best_match.history]
             }), 200
         else:
             return jsonify({
                 'name': 'Unknown',
-                'distance': float(distance),
-                'status_message': "No match found"
+                'distance': float(min_distance)
             }), 200
 
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
 @api.route('/health', methods=['GET'])
 def health_check():

@@ -14,42 +14,33 @@ def setup_logging():
     # Create a log filename with timestamp
     log_filename = os.path.join(logs_dir, f'app_{datetime.now().strftime("%Y%m%d")}.log')
 
-    # Create formatters
-    # Detailed formatter for file
-    file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    # Simplified formatter for console
-    console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    # Configure logging
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-    # Create and configure file handler
+    # Create file handler
     file_handler = logging.FileHandler(log_filename)
-    file_handler.setFormatter(file_formatter)
+    file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
-
-    # Create and configure console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.INFO)
 
     # Get the logger
     logger = logging.getLogger('app')
     logger.setLevel(logging.INFO)
 
-    # Remove any existing handlers to avoid duplicates
-    logger.handlers = []
+    # Remove any existing handlers
+    if logger.handlers:
+        logger.handlers.clear()
 
-    # Add the handlers to the logger
+    # Add the handler
     logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
 
-    # Ensure propagation is enabled
-    logger.propagate = True
+    # Disable propagation to prevent duplicate logs
+    logger.propagate = False
 
     return logger
 
 def create_app():
     # Setup logging
     logger = setup_logging()
-    logger.info("Starting application initialization...")
     
     # Create Flask app
     app = Flask(__name__)
@@ -74,49 +65,58 @@ def create_app():
         logger.info("Registering blueprints...")
         app.register_blueprint(api, url_prefix='/api')
 
+        # Add root route
+        @app.route('/')
+        def home():
+            return {
+                'status': 'online',
+                'version': '1.0',
+                'endpoints': {
+                    'add_guest': '/api/add_guest',
+                    'validate_face': '/api/validate_face',
+                    'recognize_plate': '/api/recognize'
+                }
+            }
+
+        # Add error handlers
+        @app.errorhandler(404)
+        def not_found_error(error):
+            logger.info(f"404 Error: {request.url}")
+            return {
+                'error': 'Not Found',
+                'message': 'The requested URL was not found on the server.',
+                'available_endpoints': {
+                    'add_guest': '/api/add_guest',
+                    'validate_face': '/api/validate_face',
+                    'recognize_plate': '/api/recognize'
+                }
+            }, 404
+
+        @app.errorhandler(500)
+        def internal_error(error):
+            logger.error(f"500 Error: {str(error)}")
+            return {'error': 'Internal Server Error'}, 500
+
+        @app.before_request
+        def log_request_info():
+            if not request.path.startswith('/static'):  # Skip logging static file requests
+                logger.info(f"Received {request.method} request to {request.path}")
+                important_headers = {
+                    'User-Agent': request.headers.get('User-Agent'),
+                    'Content-Type': request.headers.get('Content-Type')
+                }
+                logger.info(f"Important Headers: {important_headers}")
+
+        @app.after_request
+        def log_response_info(response):
+            logger.info(f"Response status: {response.status}")
+            logger.info(f"Response size: {len(response.get_data())} bytes")
+            return response
+
         logger.info("Application startup completed successfully")
 
     except Exception as e:
         logger.error(f"Error during application startup: {str(e)}")
         raise
-
-    @app.before_request
-    def log_request_info():
-        # Don't log health check requests
-        if request.path != '/health':
-            logger.info(f"Received {request.method} request to {request.path}")
-            
-            # Log only essential headers
-            important_headers = {
-                'User-Agent': request.headers.get('User-Agent'),
-                'Content-Type': request.headers.get('Content-Type')
-            }
-            logger.info(f"Important Headers: {important_headers}")
-            
-            # For file uploads, just log the file name, not the content
-            if request.files:
-                files_info = {key: value.filename for key, value in request.files.items()}
-                logger.info(f"Uploaded files: {files_info}")
-            elif request.method != 'GET' and not request.files:
-                # For non-GET requests without files, log only the first 100 characters of the body
-                body = request.get_data(as_text=True)
-                if len(body) > 100:
-                    body = body[:100] + "..."
-                logger.info(f"Request body preview: {body}")
-
-    @app.after_request
-    def log_response_info(response):
-        if request.path != '/health':
-            logger.info(f"Response status: {response.status}")
-            
-            # Log response size instead of content
-            response_size = len(response.get_data())
-            logger.info(f"Response size: {response_size} bytes")
-        return response
-
-    @app.errorhandler(Exception)
-    def handle_exception(e):
-        logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
-        return {"error": "Internal server error"}, 500
 
     return app
