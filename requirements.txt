@@ -5,7 +5,9 @@ autopep8
 # App
 flask
 flask-sqlalchemy 
+Flask-JWT-Extended
 mysql-connector-python
+flask-bcrypt
 
 numpy
 requests

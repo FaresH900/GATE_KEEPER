@@ -1,10 +1,12 @@
 from flask import Flask, request
+from flask_jwt_extended import JWTManager
 import os
 import logging
 from datetime import datetime
-from app.routes.api import api
 from app.config import Config
 from app.extensions import db
+from app.routes.api import api
+from app.routes.auth import auth
 
 def setup_logging():
     # Create logs directory if it doesn't exist
@@ -50,6 +52,7 @@ def create_app():
         # Initialize extensions
         logger.info("Initializing database...")
         db.init_app(app)
+        jwt = JWTManager(app)
 
         # Ensure required directories exist
         logger.info("Creating required directories...")
@@ -63,6 +66,7 @@ def create_app():
 
         # Register blueprints
         logger.info("Registering blueprints...")
+        app.register_blueprint(auth, url_prefix='/auth')
         app.register_blueprint(api, url_prefix='/api')
 
         # Add root route
