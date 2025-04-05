@@ -2,15 +2,15 @@ from app.extensions import db, bcrypt
 from enum import Enum
 
 class UserRole(Enum):
-    ADMIN = 'admin'
-    RESIDENT = 'resident'
-    GATEKEEPER = 'gatekeeper'
+    ADMIN = 'ADMIN'
+    RESIDENT = 'RESDIDENT'
+    GATEKEEPER = 'GATEKEEPER'
 
 class User(db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
-    role = db.Column(db.Enum(UserRole), nullable=False)
+    role = db.Column(db.Enum('ADMIN', 'RESIDENT', 'GATEKEEPER', name='userrole'), nullable=False)  # Updated enum values    name = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -28,10 +28,14 @@ class User(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'role': self.role.value,
+            'role': self.role,
             'name': self.name,
             'email': self.email
         }
+    
+    def get_identity(self):
+        """Return string identity for JWT"""
+        return str(self.id)
 
 class Resident(db.Model):
     __tablename__ = 'residents'

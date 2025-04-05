@@ -10,7 +10,7 @@ from app.models.facial_recognition import FacialRecognition
 from app.models.guest import Guest, GuestStatus  
 
 # Create the Blueprint
-api = Blueprint('api', __name__)
+api_bp = Blueprint('api', __name__)
 # recognizer = LicensePlateRecognizer(Config.YOLO_MODEL_PATH, Config.DEBUG_DIR)
 # facial_recognition = FacialRecognition()
 try:
@@ -19,7 +19,7 @@ try:
 except Exception as e:
     print(f"Error initializing models: {e}")
 
-@api.route('/recognize', methods=['POST'])
+@api_bp.route('/recognize', methods=['POST'])
 def recognize_plate():
     if 'image' not in request.files:
         return jsonify({'error': 'No image file provided'}), 400
@@ -62,7 +62,7 @@ def recognize_plate():
 
     return jsonify({'error': 'Invalid file type'}), 400
 
-@api.route('/add_guest', methods=['POST'])
+@api_bp.route('/add_guest', methods=['POST'])
 def add_guest():
     try:
         name = request.form.get('name')
@@ -113,7 +113,7 @@ def add_guest():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@api.route('/validate_face', methods=['POST'])
+@api_bp.route('/validate_face', methods=['POST'])
 def validate_face():
     try:
         # Get image data
@@ -194,7 +194,7 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
-@api.route('/health', methods=['GET'])
+@api_bp.route('/health', methods=['GET'])
 def health_check():
     return jsonify({
         'status': 'healthy',

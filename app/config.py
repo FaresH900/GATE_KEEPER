@@ -30,3 +30,5 @@ class Config:
     JWT_SECRET_KEY = '31e39bcb51dd6b40439b8519eba7dd85'  # Change this in production
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    JWT_BLACKLIST_ENABLED = True
+    JWT_BLACKLIST_TOKEN_CHECKS = ['access', 'refresh']

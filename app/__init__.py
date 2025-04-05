@@ -1,12 +1,15 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.config import Config
-from app.extensions import db
-from app.routes.api import api
-from app.routes.auth import auth
+from app.extensions import db, bcrypt
+from app.routes.auth import auth_bp
+from app.routes.api import api_bp
+from app.routes.admin import admin_bp
+from app.routes.resident import resident_bp
+from app.models.token import TokenBlocklist  # Add this import
 
 def setup_logging():
     # Create logs directory if it doesn't exist
@@ -52,6 +55,7 @@ def create_app():
         # Initialize extensions
         logger.info("Initializing database...")
         db.init_app(app)
+        bcrypt.init_app(app)
         jwt = JWTManager(app)
 
         # Ensure required directories exist
@@ -64,46 +68,108 @@ def create_app():
         with app.app_context():
             db.create_all()
 
+        # JWT configuration
+        @jwt.token_in_blocklist_loader
+        def check_if_token_revoked(jwt_header, jwt_payload):
+            jti = jwt_payload["jti"]
+            token = TokenBlocklist.query.filter_by(jti=jti).first()
+            return token is not None
+
+        @jwt.expired_token_loader
+        def expired_token_callback(jwt_header, jwt_payload):
+            return jsonify({
+                'status': 401,
+                'sub_status': 42,
+                'msg': 'The token has expired'
+            }), 401
+
+        @jwt.invalid_token_loader
+        def invalid_token_callback(error):
+            return jsonify({
+                'status': 401,
+                'sub_status': 43,
+                'msg': 'Invalid token'
+            }), 401
+
+        @jwt.unauthorized_loader
+        def missing_token_callback(error):
+            return jsonify({
+                'status': 401,
+                'sub_status': 44,
+                'msg': 'Request does not contain a valid token'
+            }), 401
+
+        @jwt.revoked_token_loader
+        def revoked_token_callback(jwt_header, jwt_payload):
+            return jsonify({
+                'status': 401,
+                'sub_status': 45,
+                'msg': 'The token has been revoked'
+            }), 401
+
         # Register blueprints
         logger.info("Registering blueprints...")
-        app.register_blueprint(auth, url_prefix='/auth')
-        app.register_blueprint(api, url_prefix='/api')
+        app.register_blueprint(auth_bp, url_prefix='/auth')
+        app.register_blueprint(api_bp, url_prefix='/api')
+        app.register_blueprint(admin_bp, url_prefix='/admin')
+        app.register_blueprint(resident_bp, url_prefix='/resident')
 
         # Add root route
         @app.route('/')
         def home():
-            return {
+            return jsonify({
                 'status': 'online',
                 'version': '1.0',
                 'endpoints': {
-                    'add_guest': '/api/add_guest',
-                    'validate_face': '/api/validate_face',
-                    'recognize_plate': '/api/recognize'
+                    'auth': {
+                        'login': '/auth/login',
+                        'logout': '/auth/logout',
+                        'refresh': '/auth/refresh',
+                        'check_token': '/auth/check_token'
+                    },
+                    'api': {
+                        'add_guest': '/api/add_guest',
+                        'validate_face': '/api/validate_face',
+                        'recognize_plate': '/api/recognize'
+                    },
+                    'admin': {
+                        'residents': '/admin/residents',
+                        'resident_face': '/admin/resident/<id>/face'
+                    },
+                    'resident': {
+                        'profile': '/resident/profile',
+                        'face': '/resident/face'
+                    }
                 }
-            }
+            })
+
+        # Add health check endpoint
+        @app.route('/health')
+        def health_check():
+            return jsonify({
+                'status': 'healthy',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'database': 'connected' if db.engine.pool.checkedout() == 0 else 'busy'
+            })
 
         # Add error handlers
         @app.errorhandler(404)
         def not_found_error(error):
             logger.info(f"404 Error: {request.url}")
-            return {
+            return jsonify({
                 'error': 'Not Found',
                 'message': 'The requested URL was not found on the server.',
-                'available_endpoints': {
-                    'add_guest': '/api/add_guest',
-                    'validate_face': '/api/validate_face',
-                    'recognize_plate': '/api/recognize'
-                }
-            }, 404
+                'docs': '/ for available endpoints'
+            }), 404
 
         @app.errorhandler(500)
         def internal_error(error):
             logger.error(f"500 Error: {str(error)}")
-            return {'error': 'Internal Server Error'}, 500
+            return jsonify({'error': 'Internal Server Error'}), 500
 
         @app.before_request
         def log_request_info():
-            if not request.path.startswith('/static'):  # Skip logging static file requests
+            if not request.path.startswith('/static') and request.path != '/health':
                 logger.info(f"Received {request.method} request to {request.path}")
                 important_headers = {
                     'User-Agent': request.headers.get('User-Agent'),
@@ -113,8 +179,9 @@ def create_app():
 
         @app.after_request
         def log_response_info(response):
-            logger.info(f"Response status: {response.status}")
-            logger.info(f"Response size: {len(response.get_data())} bytes")
+            if request.path != '/health':
+                logger.info(f"Response status: {response.status}")
+                logger.info(f"Response size: {len(response.get_data())} bytes")
             return response
 
         logger.info("Application startup completed successfully")
