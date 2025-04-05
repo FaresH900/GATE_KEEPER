@@ -8,6 +8,7 @@ flask-sqlalchemy
 Flask-JWT-Extended
 mysql-connector-python
 flask-bcrypt
+flask-cors
 
 numpy
 requests

@@ -3,7 +3,7 @@ from enum import Enum
 
 class UserRole(Enum):
     ADMIN = 'ADMIN'
-    RESIDENT = 'RESDIDENT'
+    RESIDENT = 'RESIDENT'
     GATEKEEPER = 'GATEKEEPER'
 
 class User(db.Model):

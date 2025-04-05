@@ -1,5 +1,18 @@
-from flask import Flask, request, jsonify
-from flask_jwt_extended import JWTManager
+from flask import (
+    Flask, 
+    request, 
+    jsonify,
+    render_template,
+    redirect,
+    url_for
+)
+from flask_jwt_extended import (
+    JWTManager, 
+    jwt_required, 
+    get_jwt_identity, 
+    verify_jwt_in_request
+)
+from flask_cors import CORS
 import os
 import logging
 from datetime import datetime, timezone
@@ -10,6 +23,7 @@ from app.routes.api import api_bp
 from app.routes.admin import admin_bp
 from app.routes.resident import resident_bp
 from app.models.token import TokenBlocklist  # Add this import
+from app.models.user import User, UserRole
 
 def setup_logging():
     # Create logs directory if it doesn't exist
@@ -49,6 +63,14 @@ def create_app():
     
     # Create Flask app
     app = Flask(__name__)
+    CORS(app, resources={
+        r"/*": {
+            "origins": ["*"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "Accept"],
+            "supports_credentials": True
+        }
+    })
     app.config.from_object(Config)
 
     try:
@@ -117,31 +139,52 @@ def create_app():
         # Add root route
         @app.route('/')
         def home():
-            return jsonify({
-                'status': 'online',
-                'version': '1.0',
-                'endpoints': {
-                    'auth': {
-                        'login': '/auth/login',
-                        'logout': '/auth/logout',
-                        'refresh': '/auth/refresh',
-                        'check_token': '/auth/check_token'
-                    },
-                    'api': {
-                        'add_guest': '/api/add_guest',
-                        'validate_face': '/api/validate_face',
-                        'recognize_plate': '/api/recognize'
-                    },
-                    'admin': {
-                        'residents': '/admin/residents',
-                        'resident_face': '/admin/resident/<id>/face'
-                    },
-                    'resident': {
-                        'profile': '/resident/profile',
-                        'face': '/resident/face'
-                    }
-                }
-            })
+            try:
+                # Try to verify JWT token
+                verify_jwt_in_request(optional=True)
+                current_user_id = get_jwt_identity()
+                if current_user_id:
+                    # Get user from database
+                    user = User.query.get(int(current_user_id))
+                    if user:
+                        # Redirect based on role
+                        if user.role == 'ADMIN':
+                            return redirect(url_for('admin.dashboard'))
+                        elif user.role == 'RESIDENT':
+                            return redirect(url_for('resident.dashboard'))
+                        elif user.role == 'GATEKEEPER':
+                            return redirect(url_for('gatekeeper.dashboard'))
+
+                # If no valid token or user not found, show login page
+                return render_template('auth/login.html')
+            except:
+                # If any error occurs, show login page
+                return render_template('auth/login.html')
+
+        # Add dashboard routes for each role
+        @app.route('/admin/dashboard')
+        @jwt_required()
+        def admin_dashboard():
+            current_user = User.query.get(int(get_jwt_identity()))
+            if not current_user or current_user.role != 'ADMIN':
+                return redirect(url_for('home'))
+            return render_template('admin/dashboard.html')
+
+        @app.route('/resident/dashboard')
+        @jwt_required()
+        def resident_dashboard():
+            current_user = User.query.get(int(get_jwt_identity()))
+            if not current_user or current_user.role != 'RESIDENT':
+                return redirect(url_for('home'))
+            return render_template('resident/dashboard.html')
+
+        @app.route('/gatekeeper/dashboard')
+        @jwt_required()
+        def gatekeeper_dashboard():
+            current_user = User.query.get(int(get_jwt_identity()))
+            if not current_user or current_user.role != 'GATEKEEPER':
+                return redirect(url_for('home'))
+            return render_template('gatekeeper/dashboard.html')
 
         # Add health check endpoint
         @app.route('/health')
@@ -152,21 +195,22 @@ def create_app():
                 'database': 'connected' if db.engine.pool.checkedout() == 0 else 'busy'
             })
 
-        # Add error handlers
-        @app.errorhandler(404)
-        def not_found_error(error):
-            logger.info(f"404 Error: {request.url}")
+        # app/__init__.py
+        @app.errorhandler(Exception)
+        def handle_error(error):
+            if isinstance(error, HTTPException):
+                return jsonify({
+                    "error": error.name,
+                    "message": error.description
+                }), error.code
+            
+            app.logger.error(f"Unexpected error: {str(error)}")
             return jsonify({
-                'error': 'Not Found',
-                'message': 'The requested URL was not found on the server.',
-                'docs': '/ for available endpoints'
-            }), 404
+                "error": "Internal Server Error",
+                "message": "An unexpected error occurred"
+            }), 500
 
-        @app.errorhandler(500)
-        def internal_error(error):
-            logger.error(f"500 Error: {str(error)}")
-            return jsonify({'error': 'Internal Server Error'}), 500
-
+        
         @app.before_request
         def log_request_info():
             if not request.path.startswith('/static') and request.path != '/health':
@@ -179,6 +223,9 @@ def create_app():
 
         @app.after_request
         def log_response_info(response):
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
             if request.path != '/health':
                 logger.info(f"Response status: {response.status}")
                 logger.info(f"Response size: {len(response.get_data())} bytes")
