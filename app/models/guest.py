@@ -6,8 +6,8 @@ from enum import Enum
 
 # Define GuestStatus first
 class GuestStatus(Enum):
-    PENDING = 'pending'
-    ALLOWED = 'allowed'
+    PENDING = 'PENDING'
+    ALLOWED = 'ALLOWED'
 
 # Then use it in the models
 class GuestInvitation(db.Model):
@@ -17,14 +17,14 @@ class GuestInvitation(db.Model):
     start_date = db.Column(db.DateTime, nullable=False, default=db.func.now())
     end_date = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.Enum(GuestStatus), default=GuestStatus.PENDING, nullable=False)
-    created_at = db.Column(db.DateTime, default=db.func.now())
+    created_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
 
 class Guest(db.Model):
     __tablename__ = 'guest'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     embedding = db.Column(db.LargeBinary, nullable=False)
-    created_at = db.Column(db.DateTime, default=db.func.now())
+    created_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
     
     # Add relationships
     invitations = db.relationship('GuestInvitation', backref='guest', lazy=True)
@@ -110,4 +110,4 @@ class GuestHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     guest_id = db.Column(db.Integer, db.ForeignKey('guest.id'), nullable=False)
     invitation_id = db.Column(db.Integer, db.ForeignKey('guest_invitation.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, default=db.func.now())
+    timestamp = db.Column(db.DateTime, default=db.func.now(), nullable=False)

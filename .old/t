@@ -1,0 +1,51 @@
+.
+├── config.py
+├── extensions.py
+├── __init__.py
+├── models
+│   ├── facial_recognition.py
+│   ├── guest.py
+│   ├── __init__.py
+│   ├── license_plate_recognizer.py
+│   ├── __pycache__
+│   │   ├── facial_recognition.cpython-311.pyc
+│   │   ├── guest.cpython-311.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   ├── license_plate_recognizer.cpython-311.pyc
+│   │   ├── token.cpython-311.pyc
+│   │   └── user.cpython-311.pyc
+│   ├── token.py
+│   └── user.py
+├── __pycache__
+│   ├── config.cpython-311.pyc
+│   ├── extensions.cpython-311.pyc
+│   └── __init__.cpython-311.pyc
+├── routes
+│   ├── admin.py
+│   ├── api.py
+│   ├── auth.py
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── admin.cpython-311.pyc
+│   │   ├── api.cpython-311.pyc
+│   │   ├── auth.cpython-311.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   └── resident.cpython-311.pyc
+│   └── resident.py
+├── t
+├── templates
+│   ├── admin
+│   │   └── dashboard.html
+│   ├── auth
+│   │   └── login.html
+│   ├── base.html
+│   ├── gatekeeper
+│   │   └── dashboard.html
+│   └── resident
+│       └── dashboard.html
+└── utils
+    ├── auth.py
+    ├── helpers.py
+    └── __init__.py
+
+12 directories, 37 files

@@ -24,6 +24,7 @@
       pkgs.mysql80
       pkgs.pkg-config
       pkgs.libmysqlclient
+
   ];
 
   services.mysql = {

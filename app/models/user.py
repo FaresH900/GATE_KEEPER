@@ -41,8 +41,8 @@ class Resident(db.Model):
     __tablename__ = 'residents'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
-    face_data_ref = db.Column(db.String(255))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    face_data_ref = db.Column(db.LargeBinary)
     
     # Relationships
     homes = db.relationship('Home', backref='resident')
@@ -61,5 +61,5 @@ class Car(db.Model):
     __tablename__ = 'cars'
     
     id = db.Column(db.Integer, primary_key=True)
-    resident_id = db.Column(db.Integer, db.ForeignKey('residents.id'))
+    resident_id = db.Column(db.Integer, db.ForeignKey('residents.id'), nullable=False)
     license_plate = db.Column(db.String(50), unique=True)

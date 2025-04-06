@@ -1,0 +1,1926 @@
+app/
+├── config.py
+├── extensions.py
+├── __init__.py
+├── models
+│   ├── facial_recognition.py
+│   ├── guest.py
+│   ├── __init__.py
+│   ├── license_plate_recognizer.py
+│   ├── __pycache__
+│   │   ├── facial_recognition.cpython-311.pyc
+│   │   ├── guest.cpython-311.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   ├── license_plate_recognizer.cpython-311.pyc
+│   │   ├── token.cpython-311.pyc
+│   │   └── user.cpython-311.pyc
+│   ├── token.py
+│   └── user.py
+├── __pycache__
+│   ├── config.cpython-311.pyc
+│   ├── extensions.cpython-311.pyc
+│   └── __init__.cpython-311.pyc
+├── routes
+│   ├── admin.py
+│   ├── api.py
+│   ├── auth.py
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   ├── admin.cpython-311.pyc
+│   │   ├── api.cpython-311.pyc
+│   │   ├── auth.cpython-311.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   └── resident.cpython-311.pyc
+│   └── resident.py
+├── t
+├── templates
+│   ├── admin
+│   │   └── dashboard.html
+│   ├── auth
+│   │   └── login.html
+│   ├── base.html
+│   ├── gatekeeper
+│   │   └── dashboard.html
+│   └── resident
+│       └── dashboard.html
+├── utils
+│   ├── auth.py
+│   ├── helpers.py
+│   └── __init__.py
+└── run.py
+12 directories, 38 files
+
+=== File: run.py ===
+======================================================================
+import os
+from app import create_app
+
+app = create_app()
+
+if __name__ == '__main__':
+    app.run(debug=True)
+======================================================================
+=== File: app/config.py ===
+======================================================================
+import os
+from datetime import timedelta  
+
+class Config:
+    BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    
+    # Database
+    SQLALCHEMY_DATABASE_URI = 'mysql+mysqlconnector://root:@localhost/gatekeeping_db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Models directory
+    MODELS_DIR = os.path.join(BASE_DIR, 'models')
+    YOLO_MODEL_PATH = os.path.join(MODELS_DIR, 'yolo11m_car_plate_trained.pt')
+    
+    # Instance directory for variable data
+    INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+    UPLOAD_FOLDER = os.path.join(INSTANCE_DIR, 'uploads')
+    DEBUG_DIR = os.path.join(INSTANCE_DIR, 'debug')
+    
+    # Logs directory
+    LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+    
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max-limit
+    YOLO_CONF_THRESHOLD = 0.25
+    OCR_CONF_THRESHOLD = 0.7
+
+    # JWT Configuration
+    # python -c "import secrets;k=secrets.token_hex(16);print(k)"
+    JWT_SECRET_KEY = '31e39bcb51dd6b40439b8519eba7dd85'  # Change this in production
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    JWT_BLACKLIST_ENABLED = True
+    JWT_BLACKLIST_TOKEN_CHECKS = ['access', 'refresh']
+
+    CORS_HEADERS = 'Content-Type'
+    SECURITY_HEADERS = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Credentials': 'true'
+    }
+======================================================================
+
+=== File: app/extensions.py ===
+======================================================================
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+
+db = SQLAlchemy()
+bcrypt = Bcrypt()
+======================================================================
+
+=== File: app/__init__.py ===
+======================================================================
+from flask import (
+    Flask, 
+    request, 
+    jsonify,
+    render_template,
+    redirect,
+    url_for
+)
+from flask_jwt_extended import (
+    JWTManager, 
+    jwt_required, 
+    get_jwt_identity, 
+    verify_jwt_in_request
+)
+from flask_cors import CORS
+import os
+import logging
+from datetime import datetime, timezone
+from app.config import Config
+from app.extensions import db, bcrypt
+from app.routes.auth import auth_bp
+from app.routes.api import api_bp
+from app.routes.admin import admin_bp
+from app.routes.resident import resident_bp
+from app.models.token import TokenBlocklist  # Add this import
+from app.models.user import User, UserRole
+
+def setup_logging():
+    # Create logs directory if it doesn't exist
+    logs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs')
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # Create a log filename with timestamp
+    log_filename = os.path.join(logs_dir, f'app_{datetime.now().strftime("%Y%m%d")}.log')
+
+    # Configure logging
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    # Create file handler
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    # Get the logger
+    logger = logging.getLogger('app')
+    logger.setLevel(logging.INFO)
+
+    # Remove any existing handlers
+    if logger.handlers:
+        logger.handlers.clear()
+
+    # Add the handler
+    logger.addHandler(file_handler)
+
+    # Disable propagation to prevent duplicate logs
+    logger.propagate = False
+
+    return logger
+
+def create_app():
+    # Setup logging
+    logger = setup_logging()
+    
+    # Create Flask app
+    app = Flask(__name__)
+    CORS(app, resources={
+        r"/*": {
+            "origins": ["*"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "Accept"],
+            "supports_credentials": True
+        }
+    })
+    app.config.from_object(Config)
+
+    try:
+        # Initialize extensions
+        logger.info("Initializing database...")
+        db.init_app(app)
+        bcrypt.init_app(app)
+        jwt = JWTManager(app)
+
+        # Ensure required directories exist
+        logger.info("Creating required directories...")
+        os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+        os.makedirs(Config.DEBUG_DIR, exist_ok=True)
+
+        # Create database tables
+        logger.info("Creating database tables...")
+        with app.app_context():
+            db.create_all()
+
+        # JWT configuration
+        @jwt.token_in_blocklist_loader
+        def check_if_token_revoked(jwt_header, jwt_payload):
+            jti = jwt_payload["jti"]
+            token = TokenBlocklist.query.filter_by(jti=jti).first()
+            return token is not None
+
+        @jwt.expired_token_loader
+        def expired_token_callback(jwt_header, jwt_payload):
+            return jsonify({
+                'status': 401,
+                'sub_status': 42,
+                'msg': 'The token has expired'
+            }), 401
+
+        @jwt.invalid_token_loader
+        def invalid_token_callback(error):
+            return jsonify({
+                'status': 401,
+                'sub_status': 43,
+                'msg': 'Invalid token'
+            }), 401
+
+        @jwt.unauthorized_loader
+        def missing_token_callback(error):
+            return jsonify({
+                'status': 401,
+                'sub_status': 44,
+                'msg': 'Request does not contain a valid token'
+            }), 401
+
+        @jwt.revoked_token_loader
+        def revoked_token_callback(jwt_header, jwt_payload):
+            return jsonify({
+                'status': 401,
+                'sub_status': 45,
+                'msg': 'The token has been revoked'
+            }), 401
+
+        # Register blueprints
+        logger.info("Registering blueprints...")
+        app.register_blueprint(auth_bp, url_prefix='/auth')
+        app.register_blueprint(api_bp, url_prefix='/api')
+        app.register_blueprint(admin_bp, url_prefix='/admin')
+        app.register_blueprint(resident_bp, url_prefix='/resident')
+
+        # Add root route
+        @app.route('/')
+        def home():
+            try:
+                # Try to verify JWT token
+                verify_jwt_in_request(optional=True)
+                current_user_id = get_jwt_identity()
+                if current_user_id:
+                    # Get user from database
+                    user = User.query.get(int(current_user_id))
+                    if user:
+                        # Redirect based on role
+                        if user.role == 'ADMIN':
+                            return redirect(url_for('admin.dashboard'))
+                        elif user.role == 'RESIDENT':
+                            return redirect(url_for('resident.dashboard'))
+                        elif user.role == 'GATEKEEPER':
+                            return redirect(url_for('gatekeeper.dashboard'))
+
+                # If no valid token or user not found, show login page
+                return render_template('auth/login.html')
+            except:
+                # If any error occurs, show login page
+                return render_template('auth/login.html')
+
+        # Add dashboard routes for each role
+        @app.route('/admin/dashboard')
+        @jwt_required()
+        def admin_dashboard():
+            current_user = User.query.get(int(get_jwt_identity()))
+            if not current_user or current_user.role != 'ADMIN':
+                return redirect(url_for('home'))
+            return render_template('admin/dashboard.html')
+
+        @app.route('/resident/dashboard')
+        @jwt_required()
+        def resident_dashboard():
+            current_user = User.query.get(int(get_jwt_identity()))
+            if not current_user or current_user.role != 'RESIDENT':
+                return redirect(url_for('home'))
+            return render_template('resident/dashboard.html')
+
+        @app.route('/gatekeeper/dashboard')
+        @jwt_required()
+        def gatekeeper_dashboard():
+            current_user = User.query.get(int(get_jwt_identity()))
+            if not current_user or current_user.role != 'GATEKEEPER':
+                return redirect(url_for('home'))
+            return render_template('gatekeeper/dashboard.html')
+
+        # Add health check endpoint
+        @app.route('/health')
+        def health_check():
+            return jsonify({
+                'status': 'healthy',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'database': 'connected' if db.engine.pool.checkedout() == 0 else 'busy'
+            })
+
+        # app/__init__.py
+        @app.errorhandler(Exception)
+        def handle_error(error):
+            if isinstance(error, HTTPException):
+                return jsonify({
+                    "error": error.name,
+                    "message": error.description
+                }), error.code
+            
+            app.logger.error(f"Unexpected error: {str(error)}")
+            return jsonify({
+                "error": "Internal Server Error",
+                "message": "An unexpected error occurred"
+            }), 500
+
+        
+        @app.before_request
+        def log_request_info():
+            if not request.path.startswith('/static') and request.path != '/health':
+                logger.info(f"Received {request.method} request to {request.path}")
+                important_headers = {
+                    'User-Agent': request.headers.get('User-Agent'),
+                    'Content-Type': request.headers.get('Content-Type')
+                }
+                logger.info(f"Important Headers: {important_headers}")
+
+        @app.after_request
+        def log_response_info(response):
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+            if request.path != '/health':
+                logger.info(f"Response status: {response.status}")
+                logger.info(f"Response size: {len(response.get_data())} bytes")
+            return response
+
+        logger.info("Application startup completed successfully")
+
+    except Exception as e:
+        logger.error(f"Error during application startup: {str(e)}")
+        raise
+
+    return app
+======================================================================
+
+=== File: app/models/facial_recognition.py ===
+======================================================================
+import torch
+import numpy as np
+import cv2
+from facenet_pytorch import MTCNN, InceptionResnetV1
+import pickle
+import base64
+import re
+from PIL import Image
+
+class FacialRecognition:
+    VERSION = "1.0.0"
+    def __init__(self):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.mtcnn = MTCNN(image_size=160, margin=10, keep_all=False, device=self.device)
+        self.resnet = InceptionResnetV1(pretrained='vggface2').eval().to(self.device)
+
+    def process_image_data(self, image_data):
+        if isinstance(image_data, str) and image_data.startswith('data:image'):
+            image_data = re.sub('^data:image/.+;base64,', '', image_data)
+            image_data = base64.b64decode(image_data)
+        
+        nparr = np.frombuffer(image_data, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        return img
+
+    def generate_embedding(self, image_data):
+        img = self.process_image_data(image_data)
+        if img is None:
+            raise ValueError("Invalid image data")
+
+        face = self.mtcnn(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        if face is None:
+            raise ValueError("No face detected")
+
+        face = face.unsqueeze(0).to(self.device)
+        embedding = self.resnet(face).detach().cpu().numpy().flatten()
+        return embedding
+
+    def compare_embeddings(self, embedding1, embedding2):
+        return np.linalg.norm(embedding1 - embedding2)
+======================================================================
+
+=== File: app/models/guest.py ===
+======================================================================
+from app.extensions import db
+from datetime import datetime, timedelta
+import pickle
+import numpy as np
+from enum import Enum
+
+# Define GuestStatus first
+class GuestStatus(Enum):
+    PENDING = 'pending'
+    ALLOWED = 'allowed'
+
+# Then use it in the models
+class GuestInvitation(db.Model):
+    __tablename__ = 'guest_invitation'
+    id = db.Column(db.Integer, primary_key=True)
+    guest_id = db.Column(db.Integer, db.ForeignKey('guest.id'), nullable=False)
+    start_date = db.Column(db.DateTime, nullable=False, default=db.func.now())
+    end_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.Enum(GuestStatus), default=GuestStatus.PENDING, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+class Guest(db.Model):
+    __tablename__ = 'guest'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    embedding = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    
+    # Add relationships
+    invitations = db.relationship('GuestInvitation', backref='guest', lazy=True)
+    history = db.relationship('GuestHistory', backref='guest', lazy=True)
+
+    @staticmethod
+    def add_guest(name, embedding, invitation_end_date=None):
+        # Check for existing face matches
+        existing_guests = Guest.query.all()
+        
+        for guest in existing_guests:
+            stored_embedding = pickle.loads(guest.embedding)
+            distance = np.linalg.norm(embedding - stored_embedding)
+            
+            if distance < 0.8:  # Your threshold
+                # Create new invitation for existing guest
+                if invitation_end_date:
+                    new_invitation = GuestInvitation(
+                        guest_id=guest.id,
+                        end_date=invitation_end_date,
+                        status=GuestStatus.PENDING
+                    )
+                    db.session.add(new_invitation)
+                    db.session.commit()
+                    return {
+                        'status': 'exists',
+                        'message': 'New invitation created for existing guest',
+                        'guest': guest,
+                        'invitation': new_invitation
+                    }
+                return {
+                    'status': 'exists',
+                    'message': 'Person already registered',
+                    'guest': guest
+                }
+
+        # If no match found, create new guest and invitation
+        new_guest = Guest(name=name, embedding=pickle.dumps(embedding))
+        db.session.add(new_guest)
+        db.session.flush()  # Get the new guest ID
+
+        if invitation_end_date:
+            new_invitation = GuestInvitation(
+                guest_id=new_guest.id,
+                end_date=invitation_end_date,
+                status=GuestStatus.PENDING
+            )
+            db.session.add(new_invitation)
+        
+        db.session.commit()
+        return {
+            'status': 'new',
+            'message': 'New guest registered with invitation',
+            'guest': new_guest
+        }
+
+    def get_current_invitation(self):
+        """Get the current valid invitation if any"""
+        now = datetime.now()
+        return GuestInvitation.query.filter(
+            GuestInvitation.guest_id == self.id,
+            GuestInvitation.start_date <= now,
+            GuestInvitation.end_date >= now
+        ).first()
+
+    def update_invitation_status(self, invitation_id, new_status):
+        invitation = GuestInvitation.query.get(invitation_id)
+        if not invitation:
+            return False, "Invitation not found"
+        
+        if invitation.status == GuestStatus.ALLOWED and new_status == GuestStatus.ALLOWED:
+            return False, "Already allowed for this invitation"
+            
+        invitation.status = new_status
+        if new_status == GuestStatus.ALLOWED:
+            history = GuestHistory(guest_id=self.id, invitation_id=invitation.id)
+            db.session.add(history)
+        db.session.commit()
+        return True, "Status updated successfully"
+
+class GuestHistory(db.Model):
+    __tablename__ = 'guest_history'
+    id = db.Column(db.Integer, primary_key=True)
+    guest_id = db.Column(db.Integer, db.ForeignKey('guest.id'), nullable=False)
+    invitation_id = db.Column(db.Integer, db.ForeignKey('guest_invitation.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=db.func.now())
+======================================================================
+
+=== File: app/models/__init__.py ===
+======================================================================
+
+======================================================================
+
+=== File: app/models/license_plate_recognizer.py ===
+======================================================================
+from ultralytics import YOLO
+from PIL import Image
+from paddleocr import PaddleOCR
+import cv2
+import numpy as np
+import os
+from time import time
+
+class LicensePlateRecognizer:
+    VERSION = "1.0.0"
+    def __init__(self, model_path, debug_dir):
+        self.model = YOLO(model_path)
+        self.ocr = PaddleOCR(use_angle_cls=True, lang='ar', 
+                            det_db_box_thresh=0.7, 
+                            det_db_unclip_ratio=1.7)
+        self.debug_dir = debug_dir
+
+    def crop_plate(self, img):
+        # Perform prediction on the image
+        results = self.model.predict(source=img, conf=0.25)
+
+        # Open the image
+        image = Image.open(img)
+
+        for result in results:
+            if result.boxes is not None and len(result.boxes) > 0:
+                max_width = -1
+                selected_box = None
+
+                # Iterate through all detected boxes to find the one with the maximum width
+                for box in result.boxes:
+                    res = box.xyxy[0]  # Get the coordinates of the bounding box
+                    width = res[2].item() - res[0].item()  # Calculate width (x_max - x_min)
+
+                    if width > max_width:
+                        max_width = width
+                        selected_box = res  # Store the coordinates of the selected box
+
+                if selected_box is not None:
+                    x_min = selected_box[0].item()
+                    y_min = selected_box[1].item()
+                    x_max = selected_box[2].item()
+                    y_max = selected_box[3].item()
+
+                    # Crop the image using the bounding box coordinates
+                    cropped_image = image.crop((x_min, y_min, x_max, y_max))
+                    return cropped_image
+            else:
+                print("No bounding boxes detected.")
+        return None
+
+    def get_lower_box(self, results):
+        if not results or not results[0]:
+            return None, None, None
+        if len(results[0]) == 1:
+            bbox, (text, prob) = results[0][0]
+            return text, prob, bbox
+        # Multiple boxes: select the one with the highest bottom y-coordinate
+        lower_box = max(results[0], key=lambda x: max([p[1] for p in x[0]]))  # Max y of bbox
+        bbox, (text, prob) = lower_box
+        return text, prob, bbox
+
+    def detect_text(self, cropped_image):
+        # Convert image to BGR if needed
+        image = cv2.cvtColor(np.array(cropped_image), cv2.COLOR_RGB2BGR) if cropped_image.shape[-1] == 3 else cropped_image
+
+        # Split the image horizontally into two halves
+        height, width = image.shape[:2]
+        mid_point = width // 2
+        left_half = image[:, :mid_point, :]  # Left half
+        right_half = image[:, mid_point:, :]  # Right half
+
+        # Perform OCR on each half and select the lower box
+        detected_texts = []
+        texts_only = []
+        left_bbox = None
+        right_bbox = None
+
+        # OCR on left half
+        left_results = self.ocr.ocr(left_half, cls=True)
+        if left_results and left_results[0]:
+            left_text, left_prob, left_bbox = self.get_lower_box(left_results)
+            if left_text:
+                detected_texts.append((left_text, left_prob))
+                texts_only.append(left_text)
+
+        # OCR on right half
+        right_results = self.ocr.ocr(right_half, cls=True)
+        if right_results and right_results[0]:
+            right_text, right_prob, right_bbox = self.get_lower_box(right_results)
+            if right_text:
+                detected_texts.append((right_text, right_prob))
+                texts_only.append(right_text)
+
+        # Combine the halves back for visualization
+        combined_image = np.hstack((left_half, right_half))
+
+        # Draw bounding boxes on the combined image
+        if left_bbox is not None:
+            left_bbox = np.array(left_bbox).astype(int)
+            cv2.polylines(combined_image, [left_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
+        if right_bbox is not None:
+            right_bbox = np.array(right_bbox).astype(int)
+            right_bbox[:, 0] += mid_point  # Shift x-coordinates to match combined image
+            cv2.polylines(combined_image, [right_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
+
+        fname = f"{self.debug_dir}/plate_{str(int(time()*1000)%10000000)}.jpg"
+        cv2.imwrite(fname, combined_image)
+        return [detected_texts, texts_only, fname]
+
+    @staticmethod
+    def clean_text(texts):
+        tmp = []
+        for t in texts:
+            t = t.replace(' ','')
+            if not(ord(t[0]) >= 1569 and ord(t[0]) <= 1610):
+                tmp.append(t[::-1])
+            else:
+                tmp.append(t)
+        return tmp
+======================================================================
+
+=== File: app/models/token.py ===
+======================================================================
+from app.extensions import db
+from datetime import datetime
+
+class TokenBlocklist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+======================================================================
+
+=== File: app/models/user.py ===
+======================================================================
+from app.extensions import db, bcrypt
+from enum import Enum
+
+class UserRole(Enum):
+    ADMIN = 'ADMIN'
+    RESIDENT = 'RESIDENT'
+    GATEKEEPER = 'GATEKEEPER'
+
+class User(db.Model):
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.Enum('ADMIN', 'RESIDENT', 'GATEKEEPER', name='userrole'), nullable=False)  # Updated enum values    name = db.Column(db.String(255), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    
+    # Relationship
+    resident = db.relationship('Resident', backref='user', uselist=False)
+
+    def set_password(self, password):
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+
+
+    def check_password(self, password):
+        return bcrypt.check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role': self.role,
+            'name': self.name,
+            'email': self.email
+        }
+    
+    def get_identity(self):
+        """Return string identity for JWT"""
+        return str(self.id)
+
+class Resident(db.Model):
+    __tablename__ = 'residents'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
+    face_data_ref = db.Column(db.String(255))
+    
+    # Relationships
+    homes = db.relationship('Home', backref='resident')
+    cars = db.relationship('Car', backref='resident')
+
+class Home(db.Model):
+    __tablename__ = 'home'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    home_section = db.Column(db.String(20))
+    home_num = db.Column(db.String(20))
+    home_appart = db.Column(db.String(20))
+    res_id = db.Column(db.Integer, db.ForeignKey('residents.id'), nullable=False)
+
+class Car(db.Model):
+    __tablename__ = 'cars'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    resident_id = db.Column(db.Integer, db.ForeignKey('residents.id'))
+    license_plate = db.Column(db.String(50), unique=True)
+======================================================================
+
+=== File: app/routes/admin.py ===
+======================================================================
+from flask import Blueprint, request, jsonify, render_template
+from flask_jwt_extended import jwt_required, get_jwt_identity
+import numpy as np
+from app.models.user import User, UserRole, Resident
+from app.extensions import db
+
+admin_bp = Blueprint('admin', __name__)
+
+@admin_bp.route('/residents', methods=['GET'])
+@jwt_required()
+def get_all_residents():
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != UserRole.ADMIN:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        residents = Resident.query.all()
+        return jsonify({
+            'residents': [{
+                'id': r.id,
+                'name': r.user.name,
+                'email': r.user.email,
+                'has_face_data': r.face_data_ref is not None,
+                'homes': [{
+                    'section': h.home_section,
+                    'number': h.home_num,
+                    'apartment': h.home_appart
+                } for h in r.homes],
+                'cars': [{
+                    'license_plate': c.license_plate
+                } for c in r.cars]
+            } for r in residents]
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/resident/<int:resident_id>/face', methods=['POST'])
+@jwt_required()
+def update_resident_face(resident_id):
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != UserRole.ADMIN:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        resident = Resident.query.get(resident_id)
+        if not resident:
+            return jsonify({'error': 'Resident not found'}), 404
+
+        if 'face_data' not in request.files:
+            return jsonify({'error': 'No face data provided'}), 400
+
+        face_data = request.files['face_data'].read()
+        resident.face_data_ref = face_data
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Face data updated successfully',
+            'resident_id': resident_id
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/dashboard')
+@jwt_required()
+def dashboard():
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+
+        if not current_user or current_user.role != 'ADMIN':
+            return redirect(url_for('auth.login'))
+
+        return render_template('admin/dashboard.html', user=current_user)
+    except Exception as e:
+        return redirect(url_for('auth.login'))
+
+
+@admin_bp.route('/users', methods=['GET'])
+@jwt_required()
+def get_users():
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != 'ADMIN':
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        users = User.query.all()
+        return jsonify({
+            'users': [user.to_dict() for user in users]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/users', methods=['POST'])
+@jwt_required()
+def add_user():
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != 'ADMIN':
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['name', 'email', 'password', 'role']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Check if email already exists
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'error': 'Email already registered'}), 400
+            
+        # Create new user
+        new_user = User(
+            name=data['name'],
+            email=data['email'],
+            role=data['role']
+        )
+        new_user.set_password(data['password'])
+        
+        db.session.add(new_user)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'User created successfully',
+            'user': new_user.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def delete_user(user_id):
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != 'ADMIN':
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        db.session.delete(user)
+        db.session.commit()
+
+        return jsonify({'message': 'User deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+======================================================================
+
+=== File: app/routes/api.py ===
+======================================================================
+from flask import Blueprint, request, jsonify
+from werkzeug.utils import secure_filename
+import os
+import numpy as np 
+from datetime import datetime, timedelta  
+import pickle
+from app.config import Config
+from app.models.license_plate_recognizer import LicensePlateRecognizer
+from app.models.facial_recognition import FacialRecognition
+from app.models.guest import Guest, GuestStatus  
+
+# Create the Blueprint
+api_bp = Blueprint('api', __name__)
+# recognizer = LicensePlateRecognizer(Config.YOLO_MODEL_PATH, Config.DEBUG_DIR)
+# facial_recognition = FacialRecognition()
+try:
+    recognizer = LicensePlateRecognizer(Config.YOLO_MODEL_PATH, Config.DEBUG_DIR)
+    facial_recognition = FacialRecognition()
+except Exception as e:
+    print(f"Error initializing models: {e}")
+
+@api_bp.route('/recognize', methods=['POST'])
+def recognize_plate():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image file provided'}), 400
+
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    if file and allowed_file(file.filename):
+        try:
+            # Save uploaded file
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+            file.save(filepath)
+
+            # Process image
+            cropped_plate = recognizer.crop_plate(filepath)
+            
+            if cropped_plate is None:
+                return jsonify({'error': 'No license plate detected'}), 400
+
+            # Detect text
+            result = recognizer.detect_text(np.array(cropped_plate))
+            cleaned_texts = recognizer.clean_text(result[1])
+
+            return jsonify({
+                'status': 'success',
+                'texts': cleaned_texts,
+                'raw_result': result,
+                'debug_image': result[2]
+            })
+
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+        finally:
+            # Cleanup uploaded file
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    return jsonify({'error': 'Invalid file type'}), 400
+
+@api_bp.route('/add_guest', methods=['POST'])
+def add_guest():
+    try:
+        name = request.form.get('name')
+        if not name:
+            return jsonify({'error': 'Name is required'}), 400
+
+        # Get end date for invitation (optional)
+        end_date_str = request.form.get('end_date')
+        end_date = None
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        else:
+            # Default to 1 day invitation
+            end_date = datetime.now() + timedelta(days=1)
+
+        # Get image data
+        if 'image' in request.files:
+            image_data = request.files['image'].read()
+        else:
+            image_data = request.form.get('image_data')
+            if not image_data:
+                return jsonify({'error': 'Image is required'}), 400
+
+        # Generate embedding
+        embedding = facial_recognition.generate_embedding(image_data)
+        
+        # Save to database
+        result = Guest.add_guest(name, embedding, end_date)
+        
+        return jsonify({
+            'status': result['status'],
+            'message': result['message'],
+            'guest': {
+                'id': result['guest'].id,
+                'name': result['guest'].name,
+                'created_at': result['guest'].created_at.isoformat(),
+                'current_invitation': {
+                    'id': result['invitation'].id if 'invitation' in result else None,
+                    'start_date': result['invitation'].start_date.isoformat() if 'invitation' in result else None,
+                    'end_date': result['invitation'].end_date.isoformat() if 'invitation' in result else None,
+                    'status': result['invitation'].status.value if 'invitation' in result else None
+                } if 'invitation' in result else None
+            }
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/validate_face', methods=['POST'])
+def validate_face():
+    try:
+        # Get image data
+        if 'image' in request.files:
+            image_data = request.files['image'].read()
+        else:
+            image_data = request.form.get('image_data')
+            if not image_data:
+                return jsonify({'error': 'Image is required'}), 400
+
+        # Generate embedding
+        test_embedding = facial_recognition.generate_embedding(image_data)
+        
+        # Find match using the method from Guest model
+        guests = Guest.query.all()
+        min_distance = float('inf')
+        best_match = None
+
+        for guest in guests:
+            stored_embedding = pickle.loads(guest.embedding)
+            distance = np.linalg.norm(test_embedding - stored_embedding)
+            if distance < min_distance:
+                min_distance = distance
+                best_match = guest
+
+        threshold = 0.8
+        if min_distance < threshold and best_match:
+            # Get current invitation
+            current_invitation = best_match.get_current_invitation()
+            
+            if not current_invitation:
+                return jsonify({
+                    'name': best_match.name,
+                    'status': 'no_active_invitation',
+                    'message': 'No active invitation found',
+                    'distance': float(min_distance)
+                }), 200
+
+            # Handle status update if requested
+            new_status = request.form.get('status')
+            status_updated = False
+            status_message = "Face recognized"
+
+            if new_status and new_status in [status.value for status in GuestStatus]:
+                status_updated, status_message = best_match.update_invitation_status(
+                    current_invitation.id,
+                    GuestStatus(new_status)
+                )
+
+            return jsonify({
+                'name': best_match.name,
+                'current_invitation': {
+                    'id': current_invitation.id,
+                    'start_date': current_invitation.start_date.isoformat(),
+                    'end_date': current_invitation.end_date.isoformat(),
+                    'status': current_invitation.status.value
+                },
+                'status_message': status_message,
+                'status_updated': status_updated,
+                'distance': float(min_distance),
+                'history': [{
+                    'timestamp': h.timestamp.isoformat(),
+                    'invitation_id': h.invitation_id
+                } for h in best_match.history]
+            }), 200
+        else:
+            return jsonify({
+                'name': 'Unknown',
+                'distance': float(min_distance)
+            }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+
+@api_bp.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'models_loaded': {
+            'license_plate': recognizer is not None,
+            'facial_recognition': facial_recognition is not None
+        }
+    })
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+======================================================================
+
+=== File: app/routes/auth.py ===
+======================================================================
+from flask import Blueprint, request, jsonify, render_template
+from flask_jwt_extended import (
+    create_access_token, 
+    create_refresh_token,
+    jwt_required, 
+    get_jwt_identity, 
+    get_jwt
+)
+from app.models.user import User, UserRole
+from app.models.token import TokenBlocklist
+from app.extensions import db
+import logging
+
+auth_bp = Blueprint('auth', __name__)
+logger = logging.getLogger('app')
+
+@auth_bp.route('/login', methods=['GET'])
+def login_page():
+    return render_template('auth/login.html')
+
+@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
+def login():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+    try:
+        logger.info("Processing login request")
+        
+        # Log raw request data
+        logger.info(f"Request data: {request.get_data()}")
+        data = request.get_json()
+        logger.info(f"Parsed JSON data: {data}")
+        
+        if not data or not data.get('email') or not data.get('password'):
+            logger.warning("Missing email or password in request")
+            return jsonify({'error': 'Missing email or password'}), 400
+        
+        # Log email being checked
+        email = data.get('email')
+        logger.info(f"Attempting login for email: {email}")
+        
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            logger.warning(f"No user found with email: {email}")
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        logger.info(f"Found user: {user.email}, role: {user.role}")
+        
+        # Log password check
+        password = data.get('password')
+        password_check = user.check_password(password)
+        logger.info(f"Password check result: {password_check}")
+        
+        if not password_check:
+            logger.warning("Invalid password provided")
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        # Create tokens
+        access_token = create_access_token(identity=str(user.id))
+        refresh_token = create_refresh_token(identity=str(user.id))
+        
+        response_data = {
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'user': user.to_dict()
+        }
+        logger.info(f"Login successful for user: {user.email}")
+        logger.info(f"Response data: {response_data}")
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/check_token', methods=['GET'])
+@jwt_required()
+def check_token():
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(int(current_user_id))
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        return jsonify({
+            'valid': True,
+            'user': {
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+                'role': user.role
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 401
+
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    try:
+        jti = get_jwt()['jti']
+        user_id = int(get_jwt_identity())
+        
+        token_block = TokenBlocklist(jti=jti, user_id=user_id)
+        db.session.add(token_block)
+        db.session.commit()
+        
+        return jsonify({'message': 'Successfully logged out'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    try:
+        current_user_id = get_jwt_identity()
+        access_token = create_access_token(identity=current_user_id)
+        return jsonify({'access_token': access_token}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/test_auth', methods=['POST'])
+def test_auth():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({
+                'status': 'error',
+                'message': 'User not found'
+            })
+            
+        password_check = user.check_password(password)
+        
+        return jsonify({
+            'status': 'success',
+            'email': email,
+            'stored_hash': user.password_hash,
+            'password_check': password_check
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        })
+======================================================================
+
+=== File: app/routes/__init__.py ===
+======================================================================
+
+======================================================================
+
+=== File: app/routes/resident.py ===
+======================================================================
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models.user import User, UserRole, Resident
+from app.extensions import db
+
+resident_bp = Blueprint('resident', __name__)
+
+@resident_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != UserRole.RESIDENT:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        resident = current_user.resident
+        if not resident:
+            return jsonify({'error': 'Resident profile not found'}), 404
+
+        return jsonify({
+            'id': resident.id,
+            'name': current_user.name,
+            'email': current_user.email,
+            'has_face_data': resident.face_data_ref is not None,
+            'homes': [{
+                'section': h.home_section,
+                'number': h.home_num,
+                'apartment': h.home_appart
+            } for h in resident.homes],
+            'cars': [{
+                'license_plate': c.license_plate
+            } for c in resident.cars]
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@resident_bp.route('/face', methods=['POST'])
+@jwt_required()
+def update_face():
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != UserRole.RESIDENT:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        if not current_user.resident:
+            return jsonify({'error': 'Resident profile not found'}), 404
+
+        if 'face_data' not in request.files:
+            return jsonify({'error': 'No face data provided'}), 400
+
+        face_data = request.files['face_data'].read()
+        current_user.resident.face_data_ref = face_data
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Face data updated successfully'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+======================================================================
+
+=== File: app/templates/admin/dashboard.html ===
+======================================================================
+<!-- app/templates/admin/dashboard.html -->
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Gate Keeper{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-900">
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700">
+        <div class="flex items-center justify-center h-16 bg-gray-900">
+            <span class="text-xl font-bold text-white">Admin Dashboard</span>
+        </div>
+        <nav class="mt-6">
+            <div class="px-4 py-2">
+                <button id="addUserBtn" 
+                        class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add New User
+                </button>
+            </div>
+            <div class="px-4">
+                <div class="space-y-1">
+                    <button class="w-full flex items-center px-4 py-2 text-sm text-gray-300 rounded-md hover:bg-gray-700">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                        </svg>
+                        Users
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-64 p-8">
+        <!-- Users Table -->
+        <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-700">
+                <h2 class="text-xl font-semibold text-white">Users</h2>
+            </div>
+            <div class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead class="bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Role</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody" class="bg-gray-800 divide-y divide-gray-700">
+                            <!-- Users will be loaded here via AJAX -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
+        <div class="mt-3">
+            <h3 class="text-lg leading-6 font-medium text-white">Add New User</h3>
+            <form id="addUserForm" class="mt-4">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Name</label>
+                        <input type="text" name="name" required
+                               class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 focus:bg-gray-600 focus:ring-0 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Email</label>
+                        <input type="email" name="email" required
+                               class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 focus:bg-gray-600 focus:ring-0 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Password</label>
+                        <input type="password" name="password" required
+                               class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 focus:bg-gray-600 focus:ring-0 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300">Role</label>
+                        <select name="role" required
+                                class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 focus:bg-gray-600 focus:ring-0 text-white">
+                            <option value="ADMIN">Admin</option>
+                            <option value="RESIDENT">Resident</option>
+                            <option value="GATEKEEPER">Gatekeeper</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-5 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()"
+                            class="px-4 py-2 bg-gray-700 text-white text-base font-medium rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-primary-600 text-white text-base font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        Add User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Modal functions
+function openModal() {
+    document.getElementById('addUserModal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('addUserModal').classList.add('hidden');
+}
+
+// Load users function
+function loadUsers() {
+    fetch('/admin/users', {
+        headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('usersTableBody');
+        tbody.innerHTML = '';
+        
+        data.users.forEach(user => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${user.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${user.email}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-700 text-white">
+                        ${user.role}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    <button onclick="editUser(${user.id})" class="text-primary-400 hover:text-primary-300 mr-2">Edit</button>
+                    <button onclick="deleteUser(${user.id})" class="text-red-400 hover:text-red-300">Delete</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => console.error('Error loading users:', error));
+}
+
+// Add user form submission
+document.getElementById('addUserForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        name: this.name.value,
+        email: this.email.value,
+        password: this.password.value,
+        role: this.role.value
+    };
+
+    fetch('/admin/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        closeModal();
+        loadUsers();
+        this.reset();
+    })
+    .catch(error => {
+        console.error('Error adding user:', error);
+        alert(error.message);
+    });
+});
+
+// Event listeners
+document.getElementById('addUserBtn').addEventListener('click', openModal);
+
+// Initial load
+document.addEventListener('DOMContentLoaded', loadUsers);
+</script>
+{% endblock %}
+======================================================================
+
+=== File: app/templates/auth/login.html ===
+======================================================================
+{% extends "base.html" %}
+
+{% block title %}Login - Gate Keeper{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Custom animations */
+    @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .gradient-bg {
+        background: linear-gradient(-45deg, #1a237e, #311b92, #4a148c, #1a237e);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+    }
+
+    .input-focus-effect:focus {
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    }
+
+    .button-hover-effect:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+    }
+
+    .logo-shadow {
+        filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.5));
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen gradient-bg flex items-center justify-center px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8 backdrop-blur-lg bg-gray-900/70 p-8 rounded-xl shadow-2xl fade-in">
+        <!-- Logo and Title -->
+        <div class="text-center">
+            <div class="animate-float mb-6">
+                <svg class="mx-auto h-20 w-20 text-primary-500 logo-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+            <h2 class="mt-6 text-3xl font-extrabold text-white tracking-tight">
+                Welcome to Gate Keeper
+            </h2>
+            <p class="mt-2 text-sm text-gray-400">
+                Secure Access Management System
+            </p>
+        </div>
+
+        <!-- Login Form -->
+        <form class="mt-8 space-y-6" id="loginForm">
+            <div class="rounded-md shadow-sm -space-y-px">
+                <div class="relative">
+                    <label for="email" class="sr-only">Email address</label>
+                    <input id="email" name="email" type="email" required 
+                        class="appearance-none rounded-t-md relative block w-full px-3 py-3 border border-gray-700 placeholder-gray-500 text-white bg-gray-800/50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:z-10 sm:text-sm transition-all duration-300 input-focus-effect"
+                        placeholder="Email address">
+                    <div class="absolute right-3 top-3 text-gray-500">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="relative">
+                    <label for="password" class="sr-only">Password</label>
+                    <input id="password" name="password" type="password" required 
+                        class="appearance-none rounded-b-md relative block w-full px-3 py-3 border border-gray-700 placeholder-gray-500 text-white bg-gray-800/50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:z-10 sm:text-sm transition-all duration-300 input-focus-effect"
+                        placeholder="Password">
+                    <button type="button" id="togglePassword" class="absolute right-3 top-3 text-gray-500 hover:text-gray-400 focus:outline-none">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <input id="remember_me" name="remember_me" type="checkbox" 
+                        class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-700 rounded bg-gray-800/50 transition-colors duration-200">
+                    <label for="remember_me" class="ml-2 block text-sm text-gray-400">
+                        Remember me
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" 
+                    class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-300 button-hover-effect">
+                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                        <svg class="h-5 w-5 text-primary-500 group-hover:text-primary-400 transition-colors duration-300" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                    </span>
+                    Sign in
+                </button>
+            </div>
+        </form>
+
+        <!-- Flash Messages Container -->
+        <div id="flashMessages" class="space-y-2"></div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="hidden fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <div class="relative">
+        <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary-500"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+            <div class="text-primary-500 text-xl font-semibold">Loading...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Toggle password visibility
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const passwordInput = document.getElementById('password');
+    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+    passwordInput.setAttribute('type', type);
+    
+    // Update icon based on password visibility
+    this.innerHTML = type === 'password' 
+        ? `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                     d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                     d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+           </svg>`
+        : `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                     d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+           </svg>`;
+});
+
+// Show flash message
+function showFlashMessage(message, type = 'error') {
+    const flashContainer = document.getElementById('flashMessages');
+    const messageElement = document.createElement('div');
+    messageElement.className = `flash-message p-4 rounded-md ${type === 'error' ? 'bg-red-900/70' : 'bg-green-900/70'} 
+                               transform transition-all duration-300 ease-in-out`;
+    messageElement.innerHTML = `
+        <p class="text-sm text-center ${type === 'error' ? 'text-red-200' : 'text-green-200'}">
+            ${message}
+        </p>
+    `;
+    
+    flashContainer.appendChild(messageElement);
+    
+    // Animate in
+    setTimeout(() => messageElement.classList.add('translate-y-0', 'opacity-100'), 100);
+    
+    // Remove after delay
+    setTimeout(() => {
+        messageElement.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => messageElement.remove(), 300);
+    }, 3000);
+}
+
+// In login.html
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Show loading overlay
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    
+    // Get form data
+    const formData = {
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value
+    };
+
+    console.log('Sending login request with data:', {
+        email: formData.email,
+        password: '***' // Don't log actual password
+    });
+
+    const API_BASE_URL = window.location.origin;
+    
+    fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(formData)
+    })
+    .then(async response => {
+        const data = await response.json();
+        console.log('Server response:', {
+            status: response.status,
+            data: data
+        });
+        
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        }
+        return data;
+    })
+    .then(data => {
+        console.log('Login successful:', {
+            userId: data.user.id,
+            role: data.user.role
+        });
+        
+        // Store tokens
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        
+        // Show success message
+        showFlashMessage('Login successful! Redirecting...', 'success');
+        
+        // Redirect based on role
+        setTimeout(() => {
+            const redirectMap = {
+                'ADMIN': '/admin/dashboard',
+                'RESIDENT': '/resident/dashboard',
+                'GATEKEEPER': '/gatekeeper/dashboard'
+            };
+            
+            const redirectUrl = redirectMap[data.user.role] || '/';
+            console.log(`Redirecting to: ${redirectUrl}`);
+            window.location.href = redirectUrl;
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Login error:', error);
+        showFlashMessage(error.message);
+    })
+    .finally(() => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    });
+});
+</script>
+{% endblock %}
+======================================================================
+
+=== File: app/templates/base.html ===
+======================================================================
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gate Keeper{% endblock %}</title>
+    <link href="https://cdn.tailwindcss.com" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {"50":"#eff6ff","100":"#dbeafe","200":"#bfdbfe","300":"#93c5fd","400":"#60a5fa","500":"#3b82f6","600":"#2563eb","700":"#1d4ed8","800":"#1e40af","900":"#1e3a8a","950":"#172554"}
+                    }
+                },
+                fontFamily: {
+                    'body': [
+                        'Inter', 
+                        'ui-sans-serif', 
+                        'system-ui', 
+                        '-apple-system', 
+                        'system-ui', 
+                        'Segoe UI', 
+                        'Roboto', 
+                        'Helvetica Neue', 
+                        'Arial', 
+                        'Noto Sans', 
+                        'sans-serif', 
+                        'Apple Color Emoji', 
+                        'Segoe UI Emoji', 
+                        'Segoe UI Symbol', 
+                        'Noto Color Emoji'
+                    ],
+                    'sans': [
+                        'Inter', 
+                        'ui-sans-serif', 
+                        'system-ui', 
+                        '-apple-system', 
+                        'system-ui', 
+                        'Segoe UI', 
+                        'Roboto', 
+                        'Helvetica Neue', 
+                        'Arial', 
+                        'Noto Sans', 
+                        'sans-serif', 
+                        'Apple Color Emoji', 
+                        'Segoe UI Emoji', 
+                        'Segoe UI Symbol', 
+                        'Noto Color Emoji'
+                    ]
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-900 text-white font-sans antialiased">
+    {% block content %}{% endblock %}
+    
+    <script>
+        // Flash messages fade out
+        setTimeout(function() {
+            const messages = document.querySelectorAll('.flash-message');
+            messages.forEach(msg => {
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 300);
+            });
+        }, 3000);
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
+======================================================================
+
+=== File: app/templates/gatekeeper/dashboard.html ===
+======================================================================
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-900 p-6">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold text-white mb-8">Gatekeeper Dashboard</h1>
+        <!-- Add your gatekeeper dashboard content here -->
+    </div>
+</div>
+{% endblock %}
+======================================================================
+
+=== File: app/templates/resident/dashboard.html ===
+======================================================================
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-900 p-6">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold text-white mb-8">Resident Dashboard</h1>
+        <!-- Add your resident dashboard content here -->
+    </div>
+</div>
+{% endblock %}
+
+======================================================================
+
+=== File: app/utils/auth.py ===
+======================================================================
+from functools import wraps
+from flask import redirect, url_for
+from flask_jwt_extended import verify_jwt_in_request, get_jwt
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            verify_jwt_in_request()
+            return f(*args, **kwargs)
+        except:
+            return redirect(url_for('home'))
+    return decorated
+======================================================================
+
+=== File: app/utils/helpers.py ===
+======================================================================
+
+======================================================================
+
+=== File: app/utils/__init__.py ===
+======================================================================
+
+======================================================================
