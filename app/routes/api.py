@@ -1,23 +1,23 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+from app.extensions import db
+from app.models.guest import Guest, GuestInvitation, GuestStatus  
+from app.config import Config
 from werkzeug.utils import secure_filename
 import os
 import numpy as np 
-from datetime import datetime, timedelta  
 import pickle
-from app.config import Config
-from app.models.license_plate_recognizer import LicensePlateRecognizer
-from app.models.facial_recognition import FacialRecognition
-from app.models.guest import Guest, GuestStatus  
+from datetime import datetime, timedelta  
 
 # Create the Blueprint
 api_bp = Blueprint('api', __name__)
-# recognizer = LicensePlateRecognizer(Config.YOLO_MODEL_PATH, Config.DEBUG_DIR)
-# facial_recognition = FacialRecognition()
-try:
-    recognizer = LicensePlateRecognizer(Config.YOLO_MODEL_PATH, Config.DEBUG_DIR)
-    facial_recognition = FacialRecognition()
-except Exception as e:
-    print(f"Error initializing models: {e}")
+
+# Use app.facial_recognition and app.recognizer instead of local instances
+facial_recognition = lambda: current_app.facial_recognition
+recognizer = lambda: current_app.recognizer
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+
 
 @api_bp.route('/recognize', methods=['POST'])
 def recognize_plate():
@@ -36,14 +36,14 @@ def recognize_plate():
             file.save(filepath)
 
             # Process image
-            cropped_plate = recognizer.crop_plate(filepath)
+            cropped_plate = recognizer().crop_plate(filepath)
             
             if cropped_plate is None:
                 return jsonify({'error': 'No license plate detected'}), 400
 
             # Detect text
-            result = recognizer.detect_text(np.array(cropped_plate))
-            cleaned_texts = recognizer.clean_text(result[1])
+            result = recognizer().detect_text(np.array(cropped_plate))
+            cleaned_texts = recognizer().clean_text(result[1])
 
             return jsonify({
                 'status': 'success',
@@ -87,7 +87,7 @@ def add_guest():
                 return jsonify({'error': 'Image is required'}), 400
 
         # Generate embedding
-        embedding = facial_recognition.generate_embedding(image_data)
+        embedding = facial_recognition().generate_embedding(image_data)
         
         # Save to database
         result = Guest.add_guest(name, embedding, end_date)
@@ -125,7 +125,7 @@ def validate_face():
                 return jsonify({'error': 'Image is required'}), 400
 
         # Generate embedding
-        test_embedding = facial_recognition.generate_embedding(image_data)
+        test_embedding = facial_recognition().generate_embedding(image_data)
         
         # Find match using the method from Guest model
         guests = Guest.query.all()
@@ -198,12 +198,6 @@ def allowed_file(filename):
 def health_check():
     return jsonify({
         'status': 'healthy',
-        'models_loaded': {
-            'license_plate': recognizer is not None,
-            'facial_recognition': facial_recognition is not None
-        }
+        'facial_recognition': 'loaded' if facial_recognition() else 'not loaded',
+        'license_plate_recognizer': 'loaded' if recognizer() else 'not loaded'
     })
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS

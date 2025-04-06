@@ -14,7 +14,15 @@ class LicensePlateRecognizer:
                             det_db_box_thresh=0.7, 
                             det_db_unclip_ratio=1.7)
         self.debug_dir = debug_dir
-
+        if not os.path.exists(debug_dir):
+            os.makedirs(debug_dir)  # Create app/static/debug/ if it doesn’t exist
+    
+    def save_debug_image(self, image, texts):
+            filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+            debug_path = os.path.join(self.debug_dir, filename)
+            cv2.imwrite(debug_path, image)
+            return f"/static/debug/{filename}"  # Return URL path
+    
     def crop_plate(self, img):
         # Perform prediction on the image
         results = self.model.predict(source=img, conf=0.25)
@@ -104,10 +112,13 @@ class LicensePlateRecognizer:
             right_bbox[:, 0] += mid_point  # Shift x-coordinates to match combined image
             cv2.polylines(combined_image, [right_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
 
-        fname = f"{self.debug_dir}/plate_{str(int(time()*1000)%10000000)}.jpg"
-        cv2.imwrite(fname, combined_image)
-        return [detected_texts, texts_only, fname]
-
+        # fname = f"{self.debug_dir}/plate_{str(int(time()*1000)%10000000)}.jpg"
+        # cv2.imwrite(fname, combined_image)
+        # return [detected_texts, texts_only, fname]
+        debug_url = self.save_debug_image(image, detected_texts)
+        cv2.imwrite(debug_url, combined_image)
+        return [detected_texts, texts_only, debug_url]
+        
     @staticmethod
     def clean_text(texts):
         tmp = []

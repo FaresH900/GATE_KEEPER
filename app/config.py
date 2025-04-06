@@ -12,11 +12,11 @@ class Config:
     MODELS_DIR = os.path.join(BASE_DIR, 'models')
     YOLO_MODEL_PATH = os.path.join(MODELS_DIR, 'yolo11m_car_plate_trained.pt')
     
-    # Instance directory for variable data
-    INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
-    UPLOAD_FOLDER = os.path.join(INSTANCE_DIR, 'uploads')
-    DEBUG_DIR = os.path.join(INSTANCE_DIR, 'debug')
-    
+    # Static folder for debug images
+    STATIC_DIR = os.path.join(BASE_DIR, 'app', 'static')  # app/static/
+    DEBUG_DIR = os.path.join(STATIC_DIR, 'debug')         # app/static/debug/
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'instance', 'uploads')  # Keep uploads separate
+
     # Logs directory
     LOGS_DIR = os.path.join(BASE_DIR, 'logs')
     
