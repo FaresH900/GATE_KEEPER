@@ -7,6 +7,7 @@ import os
 import numpy as np 
 import pickle
 from datetime import datetime, timedelta  
+from app.utils.helpers import allowed_file
 
 # Create the Blueprint
 api_bp = Blueprint('api', __name__)
@@ -15,8 +16,8 @@ api_bp = Blueprint('api', __name__)
 facial_recognition = lambda: current_app.facial_recognition
 recognizer = lambda: current_app.recognizer
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+# def allowed_file(filename):
+#     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
 
 @api_bp.route('/recognize', methods=['POST'])

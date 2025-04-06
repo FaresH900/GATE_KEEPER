@@ -33,6 +33,12 @@ class Config:
     JWT_BLACKLIST_ENABLED = True
     JWT_BLACKLIST_TOKEN_CHECKS = ['access', 'refresh']
 
+    JWT_TOKEN_LOCATION = ['cookies']  # Look for token in cookies
+    JWT_COOKIE_SECURE = True  # Set to True in production with HTTPS
+    JWT_COOKIE_SAMESITE = 'Lax'  # Prevents CSRF, allows redirects
+    JWT_ACCESS_COOKIE_NAME = 'access_token_cookie'  # Cookie name
+    JWT_COOKIE_CSRF_PROTECT = True  # Enable CSRF protection
+    
     CORS_HEADERS = 'Content-Type'
     SECURITY_HEADERS = {
         'Access-Control-Allow-Origin': '*',

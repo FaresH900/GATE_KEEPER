@@ -131,7 +131,6 @@ document.getElementById('togglePassword').addEventListener('click', function() {
     const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
     passwordInput.setAttribute('type', type);
     
-    // Update icon based on password visibility
     this.innerHTML = type === 'password' 
         ? `<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -159,78 +158,89 @@ function showFlashMessage(message, type = 'error') {
     
     flashContainer.appendChild(messageElement);
     
-    // Animate in
     setTimeout(() => messageElement.classList.add('translate-y-0', 'opacity-100'), 100);
-    
-    // Remove after delay
     setTimeout(() => {
         messageElement.classList.add('opacity-0', 'translate-y-2');
         setTimeout(() => messageElement.remove(), 300);
     }, 3000);
 }
 
-// In login.html
+// app/templates/auth/login.html (partial)
 document.getElementById('loginForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    
-    // Show loading overlay
     document.getElementById('loadingOverlay').classList.remove('hidden');
     
-    // Get form data
     const formData = {
         email: document.getElementById('email').value,
         password: document.getElementById('password').value
     };
-
-    console.log('Sending login request with data:', {
-        email: formData.email,
-        password: '***' // Don't log actual password
-    });
+    
+    console.log('Sending login request with data:', { email: formData.email, password: '***' });
 
     const API_BASE_URL = window.location.origin;
-    
     fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'  // Send cookies
     })
-    .then(async response => {
-        const data = await response.json();
-        console.log('Server response:', {
-            status: response.status,
-            data: data
-        });
-        
-        if (!response.ok) {
-            throw new Error(data.error || `HTTP error! status: ${response.status}`);
-        }
-        return data;
+    .then(response => {
+        if (!response.ok) return response.json().then(data => { throw new Error(data.error); });
+        return response.json();
     })
     .then(data => {
-        console.log('Login successful:', {
-            userId: data.user.id,
-            role: data.user.role
-        });
-        
-        // Store tokens
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
-        
-        // Show success message
+        console.log('Login successful:', { userId: data.user.id, role: data.user.role });
         showFlashMessage('Login successful! Redirecting...', 'success');
-        
-        // Redirect based on role
         setTimeout(() => {
             const redirectMap = {
                 'ADMIN': '/admin/dashboard',
                 'RESIDENT': '/resident/dashboard',
                 'GATEKEEPER': '/gatekeeper/dashboard'
             };
-            
+            const redirectUrl = redirectMap[data.user.role] || '/';
+            console.log(`Redirecting to: ${redirectUrl}`);
+            window.location.href = redirectUrl;
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Login error:', error);
+        showFlashMessage(error.message);
+    })
+    .finally(() => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    });
+});
+// Handle form submission
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    
+    const formData = {
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value
+    };
+    
+    console.log('Sending login request with data:', { email: formData.email, password: '***' });
+
+    const API_BASE_URL = window.location.origin;
+    fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(formData)  // Send the form data as JSON
+    })
+    .then(response => {
+        if (!response.ok) return response.json().then(data => { throw new Error(data.error); });
+        return response.json();
+    })
+    .then(data => {
+        console.log('Login successful:', { userId: data.user.id, role: data.user.role });
+        showFlashMessage('Login successful! Redirecting...', 'success');
+        setTimeout(() => {
+            const redirectMap = {
+                'ADMIN': '/admin/dashboard',
+                'RESIDENT': '/resident/dashboard',
+                'GATEKEEPER': '/gatekeeper/dashboard'
+            };
             const redirectUrl = redirectMap[data.user.role] || '/';
             console.log(`Redirecting to: ${redirectUrl}`);
             window.location.href = redirectUrl;

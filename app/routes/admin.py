@@ -9,6 +9,7 @@ from app.extensions import db
 from app.config import Config
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
+from app.utils.helpers import allowed_file
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -16,17 +17,96 @@ admin_bp = Blueprint('admin', __name__)
 facial_recognition = lambda: current_app.facial_recognition
 recognizer = lambda: current_app.recognizer
 
+
 @admin_bp.route('/dashboard')
 @jwt_required()
 def dashboard():
-    try:
-        current_user_id = get_jwt_identity()
-        current_user = User.query.get(current_user_id)
-        if not current_user or current_user.role != 'ADMIN':
-            return redirect(url_for('auth.login'))
-        return render_template('admin/dashboard.html', user=current_user)
-    except Exception as e:
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
         return redirect(url_for('auth.login'))
+    return render_template('admin/dashboard.html', user=current_user)
+# @admin_bp.route('/dashboard')
+# def dashboard():  # No @jwt_required() here
+#     return render_template('admin/dashboard.html')
+# @admin_bp.route('/dashboard')
+# @jwt_required()
+# def dashboard():
+#     try:
+#         current_user_id = get_jwt_identity()
+#         current_user = User.query.get(current_user_id)
+#         if not current_user or current_user.role != 'ADMIN':
+#             return redirect(url_for('auth.login'))
+#         return render_template('admin/dashboard.html', user=current_user)
+#     except Exception as e:
+#         return redirect(url_for('auth.login'))
+
+@admin_bp.route('/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
+def update_user(user_id):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+    user.name = data.get('name', user.name)
+    user.email = data.get('email', user.email)
+    if data.get('password'):
+        user.set_password(data['password'])
+    user.role = data.get('role', user.role)
+    db.session.commit()
+    return jsonify({'message': 'User updated', 'user': user.to_dict()}), 200
+
+@admin_bp.route('/residents/<int:resident_id>', methods=['PUT'])
+@jwt_required()
+def update_resident(resident_id):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+    resident = Resident.query.get_or_404(resident_id)
+    data = request.get_json()
+    user = resident.user
+    user.name = data.get('name', user.name)
+    user.email = data.get('email', user.email)
+    db.session.commit()
+    return jsonify({'message': 'Resident updated', 'resident': resident.to_dict()}), 200
+
+@admin_bp.route('/guests', methods=['GET'])
+@jwt_required()
+def get_guests():
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+    guests = Guest.query.all()
+    return jsonify({
+        'guests': [{
+            'id': g.id,
+            'name': g.name,
+            'resident_id': g.invitations[0].guest_id if g.invitations else None,
+            'current_invitation': {
+                'end_date': g.get_current_invitation().end_date.isoformat() if g.get_current_invitation() else None
+            } if g.get_current_invitation() else None
+        } for g in guests]
+    }), 200
+
+@admin_bp.route('/guest/<int:guest_id>', methods=['PUT'])
+@jwt_required()
+def update_guest(guest_id):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+    guest = Guest.query.get_or_404(guest_id)
+    form = request.form
+    guest.name = form.get('name', guest.name)
+    if 'image' in request.files:
+        image_data = request.files['image'].read()
+        embedding = current_app.facial_recognition.generate_embedding(image_data)
+        guest.embedding = pickle.dumps(embedding)
+    if form.get('end_date'):
+        invitation = guest.get_current_invitation() or GuestInvitation(guest_id=guest_id)
+        invitation.end_date = datetime.strptime(form['end_date'], '%Y-%m-%d')
+        db.session.add(invitation)
+    db.session.commit()
+    return jsonify({'message': 'Guest updated', 'guest': guest.to_dict()}), 200
 
 @admin_bp.route('/users', methods=['GET'])
 @jwt_required()

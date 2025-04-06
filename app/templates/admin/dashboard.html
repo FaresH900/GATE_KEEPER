@@ -6,23 +6,25 @@
 <div class="min-h-screen bg-gray-900">
     <!-- Sidebar -->
     <aside class="fixed inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700">
-        <div class="flex items-center justify-center h-16 bg-gray-900">
+        <div class="flex items-center justify-between h-16 bg-gray-900 px-4">
             <span class="text-xl font-bold text-white">Admin Dashboard</span>
+            <button id="logoutBtn" class="text-sm text-gray-300 hover:text-white">Logout</button>
         </div>
         <nav class="mt-6">
-            <div class="px-4 py-2">
+            <div class="px-4 py-2 space-y-2">
                 <button id="addUserBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Add User</button>
-                <button id="addCarBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Add Car</button>
-                <button id="addHomeBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Add Home</button>
-                <button id="addFaceBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Add Face Data</button>
-                <button id="addGuestBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Add Guest</button>
-                <button id="addInvitationBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Add Invitation</button>
-                <button id="verifyGuestFaceBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Verify Guest Face</button>
-                <button id="verifyResidentFaceBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 mt-2">Verify Resident Face</button>
+                <button id="addCarBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Add Car</button>
+                <button id="addHomeBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Add Home</button>
+                <button id="addFaceBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Add Face Data</button>
+                <button id="addGuestBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Add Guest</button>
+                <button id="addInvitationBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Add Invitation</button>
+                <button id="verifyGuestFaceBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Verify Guest Face</button>
+                <button id="verifyResidentFaceBtn" class="w-full flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700">Verify Resident Face</button>
             </div>
-            <div class="px-4">
+            <div class="px-4 mt-4 space-y-2">
                 <button class="w-full flex items-center px-4 py-2 text-sm text-gray-300 rounded-md hover:bg-gray-700" onclick="loadUsers()">Users</button>
                 <button class="w-full flex items-center px-4 py-2 text-sm text-gray-300 rounded-md hover:bg-gray-700" onclick="loadResidents()">Residents</button>
+                <button class="w-full flex items-center px-4 py-2 text-sm text-gray-300 rounded-md hover:bg-gray-700" onclick="loadGuests()">Guests</button>
             </div>
         </nav>
     </aside>
@@ -40,6 +42,7 @@
     </main>
 
     <!-- Modals -->
+    <!-- Add User Modal -->
     <div id="addUserModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Add New User</h3>
@@ -62,6 +65,31 @@
         </div>
     </div>
 
+    <!-- Edit User Modal -->
+    <div id="editUserModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
+            <h3 class="text-lg font-medium text-white">Edit User</h3>
+            <form id="editUserForm" class="mt-4">
+                <input type="hidden" name="id">
+                <div class="space-y-4">
+                    <input type="text" name="name" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Name">
+                    <input type="email" name="email" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Email">
+                    <input type="password" name="password" class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="New Password (optional)">
+                    <select name="role" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white">
+                        <option value="ADMIN">Admin</option>
+                        <option value="RESIDENT">Resident</option>
+                        <option value="GATEKEEPER">Gatekeeper</option>
+                    </select>
+                </div>
+                <div class="mt-5 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('editUserModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Car Modal -->
     <div id="addCarModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Add Car</h3>
@@ -78,6 +106,7 @@
         </div>
     </div>
 
+    <!-- Add Home Modal -->
     <div id="addHomeModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Add Home</h3>
@@ -96,6 +125,7 @@
         </div>
     </div>
 
+    <!-- Add Face Modal -->
     <div id="addFaceModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Add Face Data</h3>
@@ -112,6 +142,7 @@
         </div>
     </div>
 
+    <!-- Add Guest Modal -->
     <div id="addGuestModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Add Guest</h3>
@@ -130,6 +161,27 @@
         </div>
     </div>
 
+    <!-- Edit Guest Modal -->
+    <div id="editGuestModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
+            <h3 class="text-lg font-medium text-white">Edit Guest</h3>
+            <form id="editGuestForm" enctype="multipart/form-data" class="mt-4">
+                <input type="hidden" name="id">
+                <div class="space-y-4">
+                    <input type="number" name="resident_id" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Resident ID">
+                    <input type="text" name="name" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Name">
+                    <input type="date" name="end_date" class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white">
+                    <input type="file" name="image" accept="image/*" class="mt-1 block w-full text-white" placeholder="Update Image (optional)">
+                </div>
+                <div class="mt-5 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('editGuestModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Invitation Modal -->
     <div id="addInvitationModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Add Invitation</h3>
@@ -146,6 +198,7 @@
         </div>
     </div>
 
+    <!-- Verify Guest Face Modal -->
     <div id="verifyGuestFaceModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Verify Guest Face</h3>
@@ -161,6 +214,7 @@
         </div>
     </div>
 
+    <!-- Verify Resident Face Modal -->
     <div id="verifyResidentFaceModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
             <h3 class="text-lg font-medium text-white">Verify Resident Face</h3>
@@ -175,11 +229,30 @@
             </form>
         </div>
     </div>
+
+    <!-- Edit Resident Modal -->
+    <div id="editResidentModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
+            <h3 class="text-lg font-medium text-white">Edit Resident</h3>
+            <form id="editResidentForm" class="mt-4">
+                <input type="hidden" name="id">
+                <div class="space-y-4">
+                    <input type="text" name="name" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Name">
+                    <input type="email" name="email" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Email">
+                </div>
+                <div class="mt-5 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('editResidentModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+// Utility Functions
 function openModal(modalId) {
     document.getElementById(modalId).classList.remove('hidden');
 }
@@ -188,62 +261,165 @@ function closeModal(modalId) {
     document.getElementById(modalId).classList.add('hidden');
 }
 
+function getCsrfToken() {
+    return document.cookie.split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+}
+
+function handleError(error, redirect = true) {
+    console.error('Error:', error);
+    alert(error.message);
+    if (redirect && error.message.includes('401')) {
+        window.location.href = '/auth/login';
+    }
+}
+
+// Load Functions
 function loadUsers() {
     document.getElementById('contentTitle').textContent = 'Users';
-    fetch('/admin/users', { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } })
-        .then(response => response.json())
-        .then(data => {
-            const tbody = document.getElementById('contentBody');
-            tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
-                <thead class="bg-gray-700">
+    fetch('/admin/users', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        const tbody = document.getElementById('contentBody');
+        tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
+            <thead class="bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Role</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-gray-800 divide-y divide-gray-700">
+                ${data.users.map(user => `
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Role</th>
+                        <td class="px-6 py-4 text-sm text-gray-300">${user.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${user.email}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${user.role}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">
+                            <button onclick="editUser(${user.id}, '${user.name}', '${user.email}', '${user.role}')" class="text-blue-400 hover:text-blue-300">Edit</button>
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="bg-gray-800 divide-y divide-gray-700">
-                    ${data.users.map(user => `
-                        <tr>
-                            <td class="px-6 py-4 text-sm text-gray-300">${user.name}</td>
-                            <td class="px-6 py-4 text-sm text-gray-300">${user.email}</td>
-                            <td class="px-6 py-4 text-sm text-gray-300">${user.role}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>`;
-        });
+                `).join('')}
+            </tbody>
+        </table>`;
+    })
+    .catch(error => handleError(error));
 }
 
 function loadResidents() {
     document.getElementById('contentTitle').textContent = 'Residents';
-    fetch('/admin/residents', { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } })
-        .then(response => response.json())
-        .then(data => {
-            const tbody = document.getElementById('contentBody');
-            tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
-                <thead class="bg-gray-700">
+    fetch('/admin/residents', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        const tbody = document.getElementById('contentBody');
+        tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
+            <thead class="bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Homes</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Cars</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-gray-800 divide-y divide-gray-700">
+                ${data.residents.map(resident => `
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Homes</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Cars</th>
+                        <td class="px-6 py-4 text-sm text-gray-300">${resident.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${resident.email}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${resident.homes.map(h => `${h.section}-${h.number}-${h.apartment}`).join(', ')}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${resident.cars.map(c => c.license_plate).join(', ')}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">
+                            <button onclick="editResident(${resident.id}, '${resident.name}', '${resident.email}')" class="text-blue-400 hover:text-blue-300">Edit</button>
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="bg-gray-800 divide-y divide-gray-700">
-                    ${data.residents.map(resident => `
-                        <tr>
-                            <td class="px-6 py-4 text-sm text-gray-300">${resident.name}</td>
-                            <td class="px-6 py-4 text-sm text-gray-300">${resident.email}</td>
-                            <td class="px-6 py-4 text-sm text-gray-300">${resident.homes.map(h => `${h.section}-${h.number}-${h.apartment}`).join(', ')}</td>
-                            <td class="px-6 py-4 text-sm text-gray-300">${resident.cars.map(c => c.license_plate).join(', ')}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>`;
-        });
+                `).join('')}
+            </tbody>
+        </table>`;
+    })
+    .catch(error => handleError(error));
 }
 
+function loadGuests() {
+    document.getElementById('contentTitle').textContent = 'Guests';
+    fetch('/admin/guests', {  // Assuming a new /admin/guests route
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        const tbody = document.getElementById('contentBody');
+        tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
+            <thead class="bg-gray-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Resident ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Invitation End Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-gray-800 divide-y divide-gray-700">
+                ${data.guests.map(guest => `
+                    <tr>
+                        <td class="px-6 py-4 text-sm text-gray-300">${guest.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${guest.resident_id || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">${guest.current_invitation?.end_date || 'No Active Invitation'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-300">
+                            <button onclick="editGuest(${guest.id}, '${guest.name}', ${guest.resident_id || 'null'}, '${guest.current_invitation?.end_date || ''}')" class="text-blue-400 hover:text-blue-300">Edit</button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>`;
+    })
+    .catch(error => handleError(error));
+}
+
+// Edit Functions
+function editUser(id, name, email, role) {
+    const form = document.getElementById('editUserForm');
+    form.id.value = id;
+    form.name.value = name;
+    form.email.value = email;
+    form.role.value = role;
+    openModal('editUserModal');
+}
+
+function editResident(id, name, email) {
+    const form = document.getElementById('editResidentForm');
+    form.id.value = id;
+    form.name.value = name;
+    form.email.value = email;
+    openModal('editResidentModal');
+}
+
+function editGuest(id, name, residentId, endDate) {
+    const form = document.getElementById('editGuestForm');
+    form.id.value = id;
+    form.name.value = name;
+    form.resident_id.value = residentId || '';
+    form.end_date.value = endDate || '';
+    openModal('editGuestModal');
+}
+
+// Form Submissions
 document.getElementById('addUserForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = {
@@ -254,13 +430,44 @@ document.getElementById('addUserForm').addEventListener('submit', function(e) {
     };
     fetch('/admin/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: JSON.stringify(formData)
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('addUserModal');
         loadUsers();
-    }).catch(error => alert(error.message));
+    })
+    .catch(error => handleError(error));
+});
+
+document.getElementById('editUserForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = {
+        name: this.name.value,
+        email: this.email.value,
+        password: this.password.value || undefined,
+        role: this.role.value
+    };
+    fetch(`/admin/users/${this.id.value}`, {  // Assuming a PUT route
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
+        body: JSON.stringify(formData)
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        closeModal('editUserModal');
+        loadUsers();
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('addCarForm').addEventListener('submit', function(e) {
@@ -268,16 +475,22 @@ document.getElementById('addCarForm').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     fetch('/admin/add_car', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: formData
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('addCarModal');
         document.getElementById('contentBody').innerHTML = `
-        <img src="${data.debug_image}" class="max-w-full h-auto" alt="Debug Image">
-        <p>License Plate: ${data.license_plate}</p>
+            <img src="${data.debug_image}" class="max-w-full h-auto" alt="Debug Image">
+            <p>License Plate: ${data.license_plate}</p>
         `;
-    }).catch(error => alert(error.message));
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('addHomeForm').addEventListener('submit', function(e) {
@@ -289,13 +502,19 @@ document.getElementById('addHomeForm').addEventListener('submit', function(e) {
     };
     fetch(`/admin/resident/${this.resident_id.value}/home`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: JSON.stringify(formData)
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('addHomeModal');
         loadResidents();
-    }).catch(error => alert(error.message));
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('addFaceForm').addEventListener('submit', function(e) {
@@ -303,13 +522,19 @@ document.getElementById('addFaceForm').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     fetch(`/admin/resident/${this.resident_id.value}/face`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: formData
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('addFaceModal');
         loadResidents();
-    }).catch(error => alert(error.message));
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('addGuestForm').addEventListener('submit', function(e) {
@@ -317,13 +542,39 @@ document.getElementById('addGuestForm').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     fetch(`/admin/resident/${this.resident_id.value}/guest`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: formData
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('addGuestModal');
-        document.getElementById('contentBody').innerHTML = `<p>Guest ${data.guest_id} added with invitation ${data.invitation_id}</p>`;
-    }).catch(error => alert(error.message));
+        loadGuests();
+    })
+    .catch(error => handleError(error));
+});
+
+document.getElementById('editGuestForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch(`/admin/guest/${this.id.value}`, {  // Assuming a PUT route
+        method: 'PUT',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        closeModal('editGuestModal');
+        loadGuests();
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('addInvitationForm').addEventListener('submit', function(e) {
@@ -331,13 +582,19 @@ document.getElementById('addInvitationForm').addEventListener('submit', function
     const formData = { end_date: this.end_date.value };
     fetch(`/admin/guest/${this.guest_id.value}/invitation`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: JSON.stringify(formData)
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('addInvitationModal');
-        document.getElementById('contentBody').innerHTML = `<p>Invitation ${data.invitation_id} added</p>`;
-    }).catch(error => alert(error.message));
+        loadGuests();
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('verifyGuestFaceForm').addEventListener('submit', function(e) {
@@ -345,15 +602,21 @@ document.getElementById('verifyGuestFaceForm').addEventListener('submit', functi
     const formData = new FormData(this);
     fetch('/admin/verify_guest_face', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: formData
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('verifyGuestFaceModal');
-        document.getElementById('contentBody').innerHTML = data.guest_id ? 
-            `<p>Matched Guest: ${data.name} (ID: ${data.guest_id}, Distance: ${data.distance})</p>` : 
+        document.getElementById('contentBody').innerHTML = data.guest_id ?
+            `<p>Matched Guest: ${data.name} (ID: ${data.guest_id}, Distance: ${data.distance})</p>` :
             `<p>No match found (Distance: ${data.distance})</p>`;
-    }).catch(error => alert(error.message));
+    })
+    .catch(error => handleError(error));
 });
 
 document.getElementById('verifyResidentFaceForm').addEventListener('submit', function(e) {
@@ -361,17 +624,47 @@ document.getElementById('verifyResidentFaceForm').addEventListener('submit', fun
     const formData = new FormData(this);
     fetch('/admin/verify_resident_face', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
         body: formData
-    }).then(response => response.json()).then(data => {
-        if (data.error) throw new Error(data.error);
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
         closeModal('verifyResidentFaceModal');
-        document.getElementById('contentBody').innerHTML = data.resident_id ? 
-            `<p>Matched Resident: ${data.name} (ID: ${data.resident_id}, Distance: ${data.distance})</p>` : 
+        document.getElementById('contentBody').innerHTML = data.resident_id ?
+            `<p>Matched Resident: ${data.name} (ID: ${data.resident_id}, Distance: ${data.distance})</p>` :
             `<p>No match found (Distance: ${data.distance})</p>`;
-    }).catch(error => alert(error.message));
+    })
+    .catch(error => handleError(error));
 });
 
+document.getElementById('editResidentForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = {
+        name: this.name.value,
+        email: this.email.value
+    };
+    fetch(`/admin/residents/${this.id.value}`, {  // Assuming a PUT route
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
+        body: JSON.stringify(formData)
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        closeModal('editResidentModal');
+        loadResidents();
+    })
+    .catch(error => handleError(error));
+});
+
+// Event Listeners for Buttons
 document.getElementById('addUserBtn').addEventListener('click', () => openModal('addUserModal'));
 document.getElementById('addCarBtn').addEventListener('click', () => openModal('addCarModal'));
 document.getElementById('addHomeBtn').addEventListener('click', () => openModal('addHomeModal'));
@@ -381,6 +674,36 @@ document.getElementById('addInvitationBtn').addEventListener('click', () => open
 document.getElementById('verifyGuestFaceBtn').addEventListener('click', () => openModal('verifyGuestFaceModal'));
 document.getElementById('verifyResidentFaceBtn').addEventListener('click', () => openModal('verifyResidentFaceModal'));
 
-document.addEventListener('DOMContentLoaded', loadUsers);
+document.getElementById('logoutBtn').addEventListener('click', function() {
+    fetch('/auth/logout', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        window.location.href = '/';
+    })
+    .catch(error => handleError(error, false));
+});
+
+// Initial Load
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/auth/check_token', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        if (data.user.role !== 'ADMIN') throw new Error('Unauthorized - Not an admin');
+        loadUsers();
+    })
+    .catch(error => {
+        handleError(error);
+    });
+});
 </script>
 {% endblock %}
