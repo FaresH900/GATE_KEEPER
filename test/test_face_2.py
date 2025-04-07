@@ -15,12 +15,12 @@ def test_guest_system():
         }
     )
     print(response1.json())
-    x = input()
     print("\nTest Case 2: Validate Pending Guest")
     response2 = requests.post(f'{base_url}/validate_face',
         files={'image': open('face_valid.png', 'rb')}
     )
     print(response2.json())
+    x = input()
 
     print("\nTest Case 3: Allow Guest")
     response3 = requests.post(f'{base_url}/validate_face',

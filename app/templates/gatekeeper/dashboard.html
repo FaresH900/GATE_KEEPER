@@ -1,10 +1,417 @@
 {% extends "base.html" %}
 
+{% block title %}Gatekeeper Dashboard - Gate Keeper{% endblock %}
+
+{% block extra_head %}
+<style>
+    .video-feed, .uploaded-image {
+        border: 2px solid #4a5568;
+        border-radius: 8px;
+        max-width: 100%;
+    }
+    .output-container {
+        background-color: #2d3748;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+    .control-btn {
+        transition: all 0.3s ease;
+    }
+    .control-btn:hover {
+        transform: scale(1.05);
+    }
+    .status-text {
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+    .tab {
+        cursor: pointer;
+        padding: 0.5rem 1rem;
+        border-bottom: 2px solid transparent;
+    }
+    .tab-active {
+        border-bottom-color: #3182ce;
+        color: #3182ce;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="min-h-screen bg-gray-900 p-6">
-    <div class="max-w-7xl mx-auto">
-        <h1 class="text-3xl font-bold text-white mb-8">Gatekeeper Dashboard</h1>
-        <!-- Add your gatekeeper dashboard content here -->
+<div class="min-h-screen bg-gray-900 p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-white">Gatekeeper Dashboard</h1>
+        <button id="logoutBtn" class="text-sm text-gray-300 hover:text-white">Logout</button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Camera Feed / Upload -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Input Source</h2>
+            <div class="flex space-x-4 mb-4">
+                <button id="cameraTab" class="tab tab-active">Camera</button>
+                <button id="uploadTab" class="tab">Upload Image</button>
+            </div>
+            <div id="cameraSection">
+                <video id="videoFeed" class="video-feed" autoplay playsinline></video>
+                <div class="mt-4 flex space-x-4">
+                    <button id="startCamera" class="control-btn px-4 py-2 bg-primary-600 text-white rounded-md">Start Camera</button>
+                    <button id="stopCamera" class="control-btn px-4 py-2 bg-red-600 text-white rounded-md" disabled>Stop Camera</button>
+                </div>
+            </div>
+            <div id="uploadSection" class="hidden">
+                <input type="file" id="imageUpload" accept="image/*" class="text-white">
+                <img id="uploadedImage" class="uploaded-image hidden" alt="Uploaded Image">
+            </div>
+        </div>
+
+        <!-- Recognition Controls -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Recognition</h2>
+            <div class="flex space-x-4 mb-4">
+                <button id="recognizePlate" class="control-btn px-4 py-2 bg-green-600 text-white rounded-md" disabled>Recognize License Plate</button>
+                <button id="recognizeFace" class="control-btn px-4 py-2 bg-blue-600 text-white rounded-md" disabled>Recognize Face</button>
+            </div>
+            <div id="outputContainer" class="output-container">
+                <img id="outputImage" class="max-w-full h-auto hidden" alt="Processed Frame">
+                <p id="outputText" class="status-text text-gray-300 mt-2">Select an input and recognition type.</p>
+            </div>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Utility Functions
+function getCsrfToken() {
+    return document.cookie.split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+}
+
+function handleError(error, redirect = true) {
+    console.error('Error:', error);
+    alert(error.message);
+    if (redirect && error.message.includes('401')) {
+        window.location.href = '/auth/login';
+    }
+}
+
+// Elements
+const video = document.getElementById('videoFeed');
+const uploadInput = document.getElementById('imageUpload');
+const uploadedImage = document.getElementById('uploadedImage');
+const recognizePlateBtn = document.getElementById('recognizePlate');
+const recognizeFaceBtn = document.getElementById('recognizeFace');
+const outputImage = document.getElementById('outputImage');
+const outputText = document.getElementById('outputText');
+const cameraTab = document.getElementById('cameraTab');
+const uploadTab = document.getElementById('uploadTab');
+const cameraSection = document.getElementById('cameraSection');
+const uploadSection = document.getElementById('uploadSection');
+const startCameraBtn = document.getElementById('startCamera');
+const stopCameraBtn = document.getElementById('stopCamera');
+let stream = null;
+let inputType = 'camera';  // Default to camera
+let selectedFile = null;   // Store the uploaded file
+const allowedExtensions = ['jpg', 'jpeg', 'png']; // Allowed file extensions
+
+// Tab Switching
+cameraTab.addEventListener('click', () => {
+    inputType = 'camera';
+    cameraTab.classList.add('tab-active');
+    uploadTab.classList.remove('tab-active');
+    cameraSection.classList.remove('hidden');
+    uploadSection.classList.add('hidden');
+    recognizePlateBtn.disabled = !stream;
+    recognizeFaceBtn.disabled = !stream;
+});
+
+uploadTab.addEventListener('click', () => {
+    inputType = 'upload';
+    uploadTab.classList.add('tab-active');
+    cameraTab.classList.remove('tab-active');
+    uploadSection.classList.remove('hidden');
+    cameraSection.classList.add('hidden');
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+        startCameraBtn.disabled = false;
+        stopCameraBtn.disabled = true;
+    }
+    recognizePlateBtn.disabled = !selectedFile;
+    recognizeFaceBtn.disabled = !selectedFile;
+});
+
+// Camera Handling
+startCameraBtn.addEventListener('click', async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        startCameraBtn.disabled = true;
+        stopCameraBtn.disabled = false;
+        if (inputType === 'camera') {
+            recognizePlateBtn.disabled = false;
+            recognizeFaceBtn.disabled = false;
+        }
+    } catch (error) {
+        handleError(error, false);
+    }
+});
+
+stopCameraBtn.addEventListener('click', () => {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+        startCameraBtn.disabled = false;
+        stopCameraBtn.disabled = true;
+        if (inputType === 'camera') {
+            recognizePlateBtn.disabled = true;
+            recognizeFaceBtn.disabled = true;
+        }
+    }
+});
+
+// Upload Handling
+uploadInput.addEventListener('change', (event) => {
+    selectedFile = event.target.files[0];
+    if (selectedFile) {
+        const extension = selectedFile.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes(extension)) {
+            alert('Invalid file type. Please upload a JPG, JPEG, or PNG image.');
+            selectedFile = null;
+            uploadedImage.classList.add('hidden');
+            if (inputType === 'upload') {
+                recognizePlateBtn.disabled = true;
+                recognizeFaceBtn.disabled = true;
+            }
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            uploadedImage.src = e.target.result;
+            uploadedImage.classList.remove('hidden');
+        };
+        reader.readAsDataURL(selectedFile);
+        if (inputType === 'upload') {
+            recognizePlateBtn.disabled = false;
+            recognizeFaceBtn.disabled = false;
+        }
+    } else {
+        selectedFile = null;
+        uploadedImage.classList.add('hidden');
+        if (inputType === 'upload') {
+            recognizePlateBtn.disabled = true;
+            recognizeFaceBtn.disabled = true;
+        }
+    }
+});
+
+// Send Image to API Endpoint
+function sendToApi(endpoint, file, filename) {
+    console.log(`Sending file to ${endpoint}:`, filename);
+    const formData = new FormData();
+    formData.append('image', file, filename);
+
+    return fetch(endpoint, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
+        body: formData
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Unknown server error');
+            });
+        }
+        return response.json();
+    });
+}
+
+// Search Residents and Guests by License Plate
+async function searchByLicensePlate(plateText) {
+    try {
+        const residentResponse = await fetch(`/api/residents/search?license_plate=${encodeURIComponent(plateText)}`, {
+            method: 'GET',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'include'
+        });
+        const residentData = await residentResponse.json();
+
+        const guestResponse = await fetch(`/api/guests/search?license_plate=${encodeURIComponent(plateText)}`, {
+            method: 'GET',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'include'
+        });
+        const guestData = await guestResponse.json();
+
+        if (residentData.status === 'success' && residentData.resident) {
+            return `Resident: ${residentData.resident.name} (Plate: ${residentData.resident.license_plate})`;
+        } else if (guestData.status === 'success' && guestData.guest) {
+            return `Guest: ${guestData.guest.name} (Plate: ${guestData.guest.license_plate}, Invitation: ${guestData.guest.current_invitation?.status || 'None'})`;
+        } else {
+            return `No resident or guest found for plate: ${plateText}`;
+        }
+    } catch (error) {
+        return `Search error: ${error.message}`;
+    }
+}
+
+// Recognize License Plate
+recognizePlateBtn.addEventListener('click', () => {
+    let filePromise;
+    if (inputType === 'camera') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    } else if (inputType === 'upload' && selectedFile) {
+        filePromise = Promise.resolve(selectedFile);
+    } else {
+        outputText.textContent = 'No image selected or captured.';
+        return;
+    }
+
+    filePromise.then(file => {
+        sendToApi('/api/recognize', file, inputType === 'camera' ? 'plate.jpg' : file.name)
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(data);
+                    // outputImage.src = `data:image/jpeg;base64,${data.debug_image}`;
+                    outputImage.src = `${window.location.origin}${data.debug_image}`;
+                    outputImage.classList.remove('hidden');
+                    const plateText = data.texts.join(', ') || 'Not Recognized';
+                    console.log(data);
+                    outputText.textContent = `License Plate: ${plateText}`;
+                    // searchByLicensePlate(plateText).then(searchResult => {
+                    //     outputText.textContent += `\n${searchResult}`;
+                    // });
+                } else {
+                    outputImage.classList.add('hidden');
+                    outputText.textContent = `Error: ${data.error}`;
+                }
+            })
+            .catch(error => {
+                outputImage.classList.add('hidden');
+                outputText.textContent = `Error: ${error.message}`;
+            });
+    });
+});
+
+// Search Residents and Guests by Face
+async function searchByFace(faceData) {
+    if (faceData.name !== 'Unknown') {
+        let result = `Recognized: ${faceData.name} (Distance: ${faceData.distance})`;
+        if (faceData.current_invitation) {
+            result += `\nInvitation: ${faceData.current_invitation.status} until ${faceData.current_invitation.end_date}`;
+            return result;
+        } else {
+            return result + `\nResident: No invitation data (assuming resident)`;
+        }
+    }
+
+    let filePromise;
+    if (inputType === 'camera') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    } else if (inputType === 'upload' && selectedFile) {
+        filePromise = Promise.resolve(selectedFile);
+    } else {
+        throw new Error('No image available');
+    }
+
+    const file = await filePromise;
+    const formData = new FormData();
+    formData.append('image', file, inputType === 'camera' ? 'face.jpg' : file.name);
+
+    try {
+        const residentResponse = await fetch('/api/validate_resident_face', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'include',
+            body: formData
+        });
+        const residentData = await residentResponse.json();
+
+        if (residentData.name && residentData.name !== 'Unknown') {
+            return `Resident: ${residentData.name} (Distance: ${residentData.distance})`;
+        } else {
+            return `No resident or guest match found (Distance: ${faceData.distance})`;
+        }
+    } catch (error) {
+        return `Face search error: ${error.message}`;
+    }
+}
+
+// Recognize Face
+recognizeFaceBtn.addEventListener('click', () => {
+    let filePromise;
+    if (inputType === 'camera') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    } else if (inputType === 'upload' && selectedFile) {
+        filePromise = Promise.resolve(selectedFile);
+    } else {
+        outputText.textContent = 'No image selected or captured.';
+        return;
+    }
+
+    filePromise.then(file => {
+        sendToApi('/api/validate_face', file, inputType === 'camera' ? 'face.jpg' : file.name)
+            .then(data => {
+                outputImage.classList.add('hidden');
+                searchByFace(data).then(searchResult => {
+                    outputText.textContent = searchResult;
+                });
+            })
+            .catch(error => {
+                outputText.textContent = `Error: ${error.message}`;
+                outputImage.classList.add('hidden');
+            });
+    });
+});
+
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    fetch('/auth/logout', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include'
+    })
+    .then(response => response.ok ? window.location.href = '/' : Promise.reject(`HTTP error! status: ${response.status}`))
+    .catch(error => handleError(error, false));
+});
+
+// Initial Load
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/auth/check_token', { method: 'GET', credentials: 'include' })
+        .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! status: ${response.status}`))
+        .then(data => {
+            if (data.user.role !== 'GATEKEEPER') throw new Error('Unauthorized - Not a gatekeeper');
+        })
+        .catch(handleError);
+
+    fetch('/api/health', { method: 'GET', credentials: 'include' })
+        .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! status: ${response.status}`))
+        .then(data => {
+            console.log('API Health:', data);
+            if (data.facial_recognition !== 'loaded' || data.license_plate_recognizer !== 'loaded') {
+                outputText.textContent = 'Warning: Some services not loaded.';
+            }
+        })
+        .catch(error => console.error('Health check failed:', error));
+});
+</script>
 {% endblock %}

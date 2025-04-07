@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import os
 from time import time
+from datetime import datetime
 
 class LicensePlateRecognizer:
     VERSION = "1.0.0"
@@ -18,10 +19,10 @@ class LicensePlateRecognizer:
             os.makedirs(debug_dir)  # Create app/static/debug/ if it doesn’t exist
     
     def save_debug_image(self, image, texts):
-            filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-            debug_path = os.path.join(self.debug_dir, filename)
-            cv2.imwrite(debug_path, image)
-            return f"/static/debug/{filename}"  # Return URL path
+        filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        debug_path = os.path.join(self.debug_dir, filename)
+        cv2.imwrite(debug_path, image)
+        return f"/static/debug/{filename}"  # Return URL path
     
     def crop_plate(self, img):
         # Perform prediction on the image
@@ -69,8 +70,11 @@ class LicensePlateRecognizer:
         return text, prob, bbox
 
     def detect_text(self, cropped_image):
-        # Convert image to BGR if needed
-        image = cv2.cvtColor(np.array(cropped_image), cv2.COLOR_RGB2BGR) if cropped_image.shape[-1] == 3 else cropped_image
+        # Convert PIL Image to NumPy array first
+        image_array = np.array(cropped_image)
+        
+        # Convert to BGR if the image has 3 channels (RGB)
+        image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR) if len(image_array.shape) == 3 and image_array.shape[-1] == 3 else image_array
 
         # Split the image horizontally into two halves
         height, width = image.shape[:2]
@@ -112,11 +116,7 @@ class LicensePlateRecognizer:
             right_bbox[:, 0] += mid_point  # Shift x-coordinates to match combined image
             cv2.polylines(combined_image, [right_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
 
-        # fname = f"{self.debug_dir}/plate_{str(int(time()*1000)%10000000)}.jpg"
-        # cv2.imwrite(fname, combined_image)
-        # return [detected_texts, texts_only, fname]
-        debug_url = self.save_debug_image(image, detected_texts)
-        cv2.imwrite(debug_url, combined_image)
+        debug_url = self.save_debug_image(combined_image, detected_texts)
         return [detected_texts, texts_only, debug_url]
         
     @staticmethod

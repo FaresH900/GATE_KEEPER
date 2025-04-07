@@ -299,50 +299,68 @@ def update_resident_face(resident_id):
 
 @admin_bp.route('/resident/<int:resident_id>/guest', methods=['POST'])
 @jwt_required()
-def add_guest_to_resident(resident_id):
-    current_user = User.query.get(get_jwt_identity())
-    if not current_user or current_user.role != 'ADMIN':
+def add_guest(resident_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not user or user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {current_user_id}")
         return jsonify({'error': 'Unauthorized'}), 403
 
-    resident = Resident.query.get(resident_id)
-    if not resident:
+    resident = User.query.get(resident_id)
+    if not resident or resident.role != 'RESIDENT':
+        logger.info(f"Resident ID {resident_id} not found or not a resident")
         return jsonify({'error': 'Resident not found'}), 404
 
     try:
         name = request.form.get('name')
         if not name:
+            logger.error("Name is required")
             return jsonify({'error': 'Name is required'}), 400
 
         end_date_str = request.form.get('end_date')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') if end_date_str else datetime.now() + timedelta(days=1)
-
-        if 'image' in request.files:
-            image_data = request.files['image'].read()
+        end_date = None
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
         else:
+            end_date = datetime.now() + timedelta(days=1)
+
+        if 'image' not in request.files:
+            logger.error("No image provided")
             return jsonify({'error': 'Image is required'}), 400
 
-        embedding = facial_recognition().generate_embedding(image_data)
-        result = Guest.add_guest(name, embedding, end_date)
+        image_data = request.files['image'].read()
+        if not image_data:
+            logger.error("Empty image uploaded")
+            return jsonify({'error': 'No image data'}), 400
 
+        facial_recognition = current_app.facial_recognition  # From __init__.py
+        embedding = facial_recognition.generate_embedding(image_data)
+        if embedding is None:
+            logger.error("Failed to generate face embedding")
+            return jsonify({'error': 'Could not detect face in image'}), 400
+
+        result = Guest.add_guest(name, embedding, end_date, resident_id=resident_id)
+        
+        logger.info(f"Guest added for resident ID {resident_id}")
         return jsonify({
             'status': result['status'],
             'message': result['message'],
             'guest': {
                 'id': result['guest'].id,
                 'name': result['guest'].name,
-                'created_at': result['guest'].created_at.isoformat(),
-                'current_invitation': {
-                    'id': result['invitation'].id if 'invitation' in result else None,
-                    'start_date': result['invitation'].start_date.isoformat() if 'invitation' in result else None,
-                    'end_date': result['invitation'].end_date.isoformat() if 'invitation' in result else None,
-                    'status': result['invitation'].status.value if 'invitation' in result else None
-                } if 'invitation' in result else None
+                'resident_id': result['guest'].resident_id,
+                'created_at': result['guest'].created_at.isoformat()
             }
         }), 200
+
     except ValueError as e:
+        logger.error(f"ValueError adding guest: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
+        logger.error(f"Error adding guest: {str(e)}")
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 @admin_bp.route('/guest/<int:guest_id>/invitation', methods=['POST'])
 @jwt_required()
@@ -509,6 +527,34 @@ def verify_resident_face():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@admin_bp.route('/resident', methods=['POST'])
+@jwt_required()
+def add_resident():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not user or user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {current_user_id}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        data = request.get_json()
+        logger.info(f"Adding new resident with data: {data}")
+        if not data or 'email' not in data or 'password' not in data or 'name' not in data:
+            return jsonify({'error': 'Email, password, and name are required'}), 400
+
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'error': 'Email already exists'}), 400
+
+        new_resident = User(email=data['email'], name=data['name'], role='RESIDENT')
+        new_resident.set_password(data['password'])
+        db.session.add(new_resident)
+        db.session.commit()
+        logger.info(f"Resident added: {new_resident.email}")
+        return jsonify({'message': 'Resident added', 'user': new_resident.to_dict()}), 201
+    except Exception as e:
+        logger.error(f"Error adding resident: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 # @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
 # @jwt_required()
 # def delete_user(user_id):

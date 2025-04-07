@@ -13,6 +13,7 @@ from app.routes.auth import auth_bp
 from app.routes.api import api_bp
 from app.routes.admin import admin_bp
 from app.routes.resident import resident_bp
+from app.routes.gatekeeper import gatekeeper_bp
 from app.models.facial_recognition import FacialRecognition
 from app.models.license_plate_recognizer import LicensePlateRecognizer
 
@@ -88,6 +89,7 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(resident_bp, url_prefix='/resident')
+    app.register_blueprint(gatekeeper_bp, url_prefix='/gatekeeper')
 
     # Routes
     @app.route('/')
