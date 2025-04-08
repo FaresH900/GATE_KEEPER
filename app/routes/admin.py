@@ -27,7 +27,9 @@ def dashboard():
     current_user = User.query.get(get_jwt_identity())
     if not current_user or current_user.role != 'ADMIN':
         return redirect(url_for('auth.login'))
-    return render_template('admin/dashboard.html', user=current_user)
+    debug_dir = os.path.join(current_app.static_folder, 'debug')
+    debug_images = [f'/static/debug/{f}' for f in os.listdir(debug_dir) if f.endswith('.jpg')]
+    return render_template('admin/dashboard.html', user=current_user, debug_images=debug_images)
 # @admin_bp.route('/dashboard')
 # def dashboard():  # No @jwt_required() here
 #     return render_template('admin/dashboard.html')
@@ -230,53 +232,53 @@ def get_all_residents():
         return jsonify({'error': str(e)}), 500
 
 
-@admin_bp.route('/add_car', methods=['POST'])
-@jwt_required()
-def add_car():
-    current_user = User.query.get(get_jwt_identity())
-    if not current_user or current_user.role != 'ADMIN':
-        return jsonify({'error': 'Unauthorized'}), 403
+# @admin_bp.route('/add_car', methods=['POST'])
+# @jwt_required()
+# def add_car():
+#     current_user = User.query.get(get_jwt_identity())
+#     if not current_user or current_user.role != 'ADMIN':
+#         return jsonify({'error': 'Unauthorized'}), 403
 
-    resident_id = request.form.get('resident_id')
-    if not resident_id or 'image' not in request.files:
-        return jsonify({'error': 'Resident ID and image are required'}), 400
+#     resident_id = request.form.get('resident_id')
+#     if not resident_id or 'image' not in request.files:
+#         return jsonify({'error': 'Resident ID and image are required'}), 400
 
-    resident = Resident.query.get(resident_id)
-    if not resident:
-        return jsonify({'error': 'Resident not found'}), 404
+#     resident = Resident.query.get(resident_id)
+#     if not resident:
+#         return jsonify({'error': 'Resident not found'}), 404
 
-    file = request.files['image']
-    if file.filename == '' or not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid or no file selected'}), 400
+#     file = request.files['image']
+#     if file.filename == '' or not allowed_file(file.filename):
+#         return jsonify({'error': 'Invalid or no file selected'}), 400
 
-    try:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-        file.save(filepath)
+#     try:
+#         filename = secure_filename(file.filename)
+#         filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+#         file.save(filepath)
 
-        cropped_plate = recognizer().crop_plate(filepath)
-        if cropped_plate is None:
-            return jsonify({'error': 'No license plate detected'}), 400
+#         cropped_plate = recognizer().crop_plate(filepath)
+#         if cropped_plate is None:
+#             return jsonify({'error': 'No license plate detected'}), 400
 
-        result = recognizer().detect_text(np.array(cropped_plate))
-        cleaned_texts = recognizer().clean_text(result[1])
+#         result = recognizer().detect_text(np.array(cropped_plate))
+#         cleaned_texts = recognizer().clean_text(result[1])
 
-        car = Car(resident_id=resident_id, license_plate=cleaned_texts[0] if cleaned_texts else 'PENDING')
-        db.session.add(car)
-        db.session.commit()
+#         car = Car(resident_id=resident_id, license_plate=cleaned_texts[0] if cleaned_texts else 'PENDING')
+#         db.session.add(car)
+#         db.session.commit()
 
-        return jsonify({
-            'status': 'success',
-            'message': 'Car added pending verification',
-            'car_id': car.id,
-            'license_plate': car.license_plate,
-            'debug_image': result[2]
-        }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        if os.path.exists(filepath):
-            os.remove(filepath)
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Car added pending verification',
+#             'car_id': car.id,
+#             'license_plate': car.license_plate,
+#             'debug_image': result[2]
+#         }), 200
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+#     finally:
+#         if os.path.exists(filepath):
+#             os.remove(filepath)
 
 @admin_bp.route('/resident/<int:resident_id>/home', methods=['POST'])
 @jwt_required()
@@ -619,49 +621,49 @@ def verify_guest_face():
             'details': str(e)
         }), 500
 
-@admin_bp.route('/guest/<int:guest_id>/car', methods=['POST'])
-@jwt_required()
-def add_guest_car(guest_id):
-    current_user = User.query.get(get_jwt_identity())
-    if not current_user or current_user.role != 'ADMIN':
-        return jsonify({'error': 'Unauthorized'}), 403
+# @admin_bp.route('/guest/<int:guest_id>/car', methods=['POST'])
+# @jwt_required()
+# def add_guest_car(guest_id):
+#     current_user = User.query.get(get_jwt_identity())
+#     if not current_user or current_user.role != 'ADMIN':
+#         return jsonify({'error': 'Unauthorized'}), 403
 
-    guest = Guest.query.get(guest_id)
-    if not guest:
-        return jsonify({'error': 'Guest not found'}), 404
+#     guest = Guest.query.get(guest_id)
+#     if not guest:
+#         return jsonify({'error': 'Guest not found'}), 404
 
-    if 'image' not in request.files:
-        return jsonify({'error': 'Image required'}), 400
+#     if 'image' not in request.files:
+#         return jsonify({'error': 'Image required'}), 400
 
-    file = request.files['image']
-    if file.filename == '' or not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid or no file selected'}), 400
+#     file = request.files['image']
+#     if file.filename == '' or not allowed_file(file.filename):
+#         return jsonify({'error': 'Invalid or no file selected'}), 400
 
-    try:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-        file.save(filepath)
+#     try:
+#         filename = secure_filename(file.filename)
+#         filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+#         file.save(filepath)
 
-        cropped_plate = recognizer().crop_plate(filepath)
-        if cropped_plate is None:
-            return jsonify({'error': 'No license plate detected'}), 400
+#         cropped_plate = recognizer().crop_plate(filepath)
+#         if cropped_plate is None:
+#             return jsonify({'error': 'No license plate detected'}), 400
 
-        result = recognizer().detect_text(np.array(cropped_plate))
-        cleaned_texts = recognizer().clean_text(result[1])
+#         result = recognizer().detect_text(np.array(cropped_plate))
+#         cleaned_texts = recognizer().clean_text(result[1])
 
-        # Placeholder for guest car (consider adding a GuestCar model)
-        return jsonify({
-            'status': 'success',
-            'message': 'Car added pending verification',
-            'guest_id': guest_id,
-            'license_plate': cleaned_texts[0] if cleaned_texts else 'PENDING',
-            'debug_image': result[2]
-        }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        if os.path.exists(filepath):
-            os.remove(filepath)
+#         # Placeholder for guest car (consider adding a GuestCar model)
+#         return jsonify({
+#             'status': 'success',
+#             'message': 'Car added pending verification',
+#             'guest_id': guest_id,
+#             'license_plate': cleaned_texts[0] if cleaned_texts else 'PENDING',
+#             'debug_image': result[2]
+#         }), 200
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
+#     finally:
+#         if os.path.exists(filepath):
+#             os.remove(filepath)
 
 @admin_bp.route('/verify_resident_face', methods=['POST'])
 @jwt_required()
@@ -795,6 +797,75 @@ def delete_invitation(invitation_id):
     except Exception as e:
         logger.error(f"Error deleting invitation: {str(e)}")
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/add_car', methods=['POST'])
+@jwt_required()
+def add_car():
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    resident_id = data.get('resident_id')
+    license_plate = data.get('license_plate')
+
+    if not resident_id or not license_plate:
+        return jsonify({'error': 'Resident ID and license plate are required'}), 400
+
+    resident = Resident.query.get(resident_id)
+    if not resident:
+        return jsonify({'error': 'Resident not found'}), 404
+
+    try:
+        # Check if license plate already exists
+        existing_car = Car.query.filter_by(license_plate=license_plate).first()
+        if existing_car:
+            return jsonify({'error': 'License plate already registered'}), 400
+
+        car = Car(resident_id=resident_id, license_plate=license_plate)
+        db.session.add(car)
+        db.session.commit()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Car added successfully',
+            'car_id': car.id,
+            'license_plate': car.license_plate
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.exception("Error adding car")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/guest/<int:guest_id>/car', methods=['POST'])
+@jwt_required()
+def add_guest_car(guest_id):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    license_plate = data.get('license_plate')
+
+    if not license_plate:
+        return jsonify({'error': 'License plate is required'}), 400
+
+    guest = Guest.query.get(guest_id)
+    if not guest:
+        return jsonify({'error': 'Guest not found'}), 404
+
+    try:
+        # Here you might want to add the car to a GuestCar table
+        # For now, we'll just return success
+        return jsonify({
+            'status': 'success',
+            'message': 'Guest car registered successfully',
+            'guest_id': guest_id,
+            'license_plate': license_plate
+        }), 200
+    except Exception as e:
+        logger.exception("Error adding guest car")
         return jsonify({'error': str(e)}), 500
 
 # @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
