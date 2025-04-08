@@ -334,14 +334,15 @@ def update_resident_face(resident_id):
 
         # Store both the embedding and the original image
         resident.face_data_ref = pickle.dumps(embedding)
-        resident.face_image = image_data  # Store the original image
+        resident.face_image = image_data
 
         db.session.commit()
         
         return jsonify({
             'message': 'Face data updated successfully',
             'resident_id': resident_id,
-            'has_face_data': True
+            'has_face_data': True,
+            'face_image': base64.b64encode(image_data).decode('utf-8')
         }), 200
 
     except Exception as e:
@@ -349,6 +350,49 @@ def update_resident_face(resident_id):
         logger.error(f"Error updating resident face: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@admin_bp.route('/guest/<int:guest_id>/face', methods=['POST'])
+@jwt_required()
+def update_guest_face(guest_id):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    guest = Guest.query.get(guest_id)
+    if not guest:
+        return jsonify({'error': 'Guest not found'}), 404
+
+    if 'image' not in request.files:
+        return jsonify({'error': 'Image required'}), 400
+
+    file = request.files['image']
+    if file.filename == '' or not allowed_file(file.filename):
+        return jsonify({'error':'Invalid or no file selected'}), 400
+    
+    try:
+        # Read the image data
+        image_data = file.read()
+        
+        # Generate embedding
+        embedding = facial_recognition().generate_embedding(image_data)
+        if embedding is None:
+            return jsonify({'error': 'Could not detect face in image'}), 400
+
+        # Store both the embedding and the original image
+        guest.embedding = pickle.dumps(embedding)
+        guest.face_image = image_data
+
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Face data updated successfully',
+            'guest_id': guest_id,
+            'face_image': base64.b64encode(image_data).decode('utf-8')
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating guest face: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/resident/<int:resident_id>/guest', methods=['POST'])
 @jwt_required()
