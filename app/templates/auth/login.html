@@ -165,7 +165,7 @@ function showFlashMessage(message, type = 'error') {
     }, 3000);
 }
 
-// app/templates/auth/login.html (partial)
+// Keep only this version of the form submission handler
 document.getElementById('loginForm').addEventListener('submit', function(e) {
     e.preventDefault();
     document.getElementById('loadingOverlay').classList.remove('hidden');
@@ -180,53 +180,11 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     const API_BASE_URL = window.location.origin;
     fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'  // Send cookies
-    })
-    .then(response => {
-        if (!response.ok) return response.json().then(data => { throw new Error(data.error); });
-        return response.json();
-    })
-    .then(data => {
-        console.log('Login successful:', { userId: data.user.id, role: data.user.role });
-        showFlashMessage('Login successful! Redirecting...', 'success');
-        setTimeout(() => {
-            const redirectMap = {
-                'ADMIN': '/admin/dashboard',
-                'RESIDENT': '/resident/dashboard',
-                'GATEKEEPER': '/gatekeeper/dashboard'
-            };
-            const redirectUrl = redirectMap[data.user.role] || '/';
-            console.log(`Redirecting to: ${redirectUrl}`);
-            window.location.href = redirectUrl;
-        }, 1000);
-    })
-    .catch(error => {
-        console.error('Login error:', error);
-        showFlashMessage(error.message);
-    })
-    .finally(() => {
-        document.getElementById('loadingOverlay').classList.add('hidden');
-    });
-});
-// Handle form submission
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    document.getElementById('loadingOverlay').classList.remove('hidden');
-    
-    const formData = {
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value
-    };
-    
-    console.log('Sending login request with data:', { email: formData.email, password: '***' });
-
-    const API_BASE_URL = window.location.origin;
-    fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json'
+        },
         credentials: 'include',
-        body: JSON.stringify(formData)  // Send the form data as JSON
+        body: JSON.stringify(formData)  // This version includes the body
     })
     .then(response => {
         if (!response.ok) return response.json().then(data => { throw new Error(data.error); });

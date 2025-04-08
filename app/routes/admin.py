@@ -10,7 +10,10 @@ from app.config import Config
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from app.utils.helpers import allowed_file
+import base64
+import logging
 
+logger = logging.getLogger(__name__)
 admin_bp = Blueprint('admin', __name__)
 
 # Use global models via current_app
@@ -73,20 +76,37 @@ def update_resident(resident_id):
 @admin_bp.route('/guests', methods=['GET'])
 @jwt_required()
 def get_guests():
-    current_user = User.query.get(get_jwt_identity())
-    if not current_user or current_user.role != 'ADMIN':
-        return jsonify({'error': 'Unauthorized'}), 403
-    guests = Guest.query.all()
-    return jsonify({
-        'guests': [{
-            'id': g.id,
-            'name': g.name,
-            'resident_id': g.invitations[0].guest_id if g.invitations else None,
-            'current_invitation': {
-                'end_date': g.get_current_invitation().end_date.isoformat() if g.get_current_invitation() else None
-            } if g.get_current_invitation() else None
-        } for g in guests]
-    }), 200
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != 'ADMIN':
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        guests = Guest.query.all()
+        return jsonify({
+            'guests': [{
+                'id': g.id,
+                'name': g.name,
+                'face_image': base64.b64encode(g.face_image).decode('utf-8') if g.face_image else None,
+                'created_at': g.created_at.isoformat(),
+                'resident': {
+                    'id': g.resident.id,
+                    'name': g.resident.user.name,
+                    'email': g.resident.user.email,
+                    'homes': [{
+                        'section': h.home_section,
+                        'number': h.home_num,
+                        'apartment': h.home_appart
+                    } for h in g.resident.homes]
+                } if g.resident else None,
+                'current_invitation': {
+                    'id': inv.id,
+                    'status': inv.status.value,
+                    'end_date': inv.end_date.isoformat()
+                } if (inv := g.get_current_invitation()) else None
+            } for g in guests]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/guest/<int:guest_id>', methods=['PUT'])
 @jwt_required()
@@ -115,9 +135,17 @@ def get_users():
         current_user = User.query.get(get_jwt_identity())
         if not current_user or current_user.role != 'ADMIN':
             return jsonify({'error': 'Unauthorized'}), 403
+        
         users = User.query.all()
         return jsonify({
-            'users': [user.to_dict() for user in users]
+            'users': [{
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+                'role': user.role,
+                'resident_data': user.resident.to_dict() if user.resident else None,
+                'created_at': user.created_at.isoformat() if hasattr(user, 'created_at') else None
+            } for user in users]
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -174,22 +202,33 @@ def get_all_residents():
         return jsonify({
             'residents': [{
                 'id': r.id,
+                'user_id': r.user_id,
                 'name': r.user.name,
                 'email': r.user.email,
                 'has_face_data': r.face_data_ref is not None,
+                'face_image': base64.b64encode(r.face_image).decode('utf-8') if r.face_image else None,
                 'homes': [{
+                    'id': h.id,
                     'section': h.home_section,
                     'number': h.home_num,
                     'apartment': h.home_appart
                 } for h in r.homes],
                 'cars': [{
+                    'id': c.id,
                     'license_plate': c.license_plate
-                } for c in r.cars]
+                } for c in r.cars],
+                'guests': [{
+                    'id': g.id,
+                    'name': g.name,
+                    'created_at': g.created_at.isoformat(),
+                    'current_invitation': g.get_current_invitation().to_dict() if g.get_current_invitation() else None
+                } for g in r.guests]
             } for r in residents]
         }), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @admin_bp.route('/add_car', methods=['POST'])
 @jwt_required()
@@ -284,18 +323,32 @@ def update_resident_face(resident_id):
     if file.filename == '' or not allowed_file(file.filename):
         return jsonify({'error':'Invalid or no file selected'}), 400
     
-    image_data = file.read()
     try:
+        # Read the image data
+        image_data = file.read()
+        
+        # Generate embedding
         embedding = facial_recognition().generate_embedding(image_data)
-        resident.face_data_ref = pickle.dumps(embedding)  # Match your Guest model’s pickle usage
+        if embedding is None:
+            return jsonify({'error': 'Could not detect face in image'}), 400
+
+        # Store both the embedding and the original image
+        resident.face_data_ref = pickle.dumps(embedding)
+        resident.face_image = image_data  # Store the original image
+
         db.session.commit()
+        
         return jsonify({
             'message': 'Face data updated successfully',
-            'resident_id': resident_id
+            'resident_id': resident_id,
+            'has_face_data': True
         }), 200
 
     except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating resident face: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @admin_bp.route('/resident/<int:resident_id>/guest', methods=['POST'])
 @jwt_required()
@@ -306,9 +359,10 @@ def add_guest(resident_id):
         logger.info(f"Unauthorized access attempt by user ID: {current_user_id}")
         return jsonify({'error': 'Unauthorized'}), 403
 
-    resident = User.query.get(resident_id)
-    if not resident or resident.role != 'RESIDENT':
-        logger.info(f"Resident ID {resident_id} not found or not a resident")
+    # Check for resident directly using Resident model
+    resident = Resident.query.get(resident_id)
+    if not resident:
+        logger.info(f"Resident ID {resident_id} not found")
         return jsonify({'error': 'Resident not found'}), 404
 
     try:
@@ -333,28 +387,52 @@ def add_guest(resident_id):
             logger.error("Empty image uploaded")
             return jsonify({'error': 'No image data'}), 400
 
-        facial_recognition = current_app.facial_recognition  # From __init__.py
-        embedding = facial_recognition.generate_embedding(image_data)
+        # Generate embedding
+        embedding = facial_recognition().generate_embedding(image_data)
         if embedding is None:
             logger.error("Failed to generate face embedding")
             return jsonify({'error': 'Could not detect face in image'}), 400
 
-        result = Guest.add_guest(name, embedding, end_date, resident_id=resident_id)
-        
+        # Create new guest
+        new_guest = Guest(
+            name=name,
+            embedding=pickle.dumps(embedding),
+            face_image=image_data,
+            resident_id=resident_id
+        )
+        db.session.add(new_guest)
+        db.session.flush()  # Get the new guest ID
+
+        # Create invitation
+        invitation = GuestInvitation(
+            guest_id=new_guest.id,
+            start_date=datetime.now(),
+            end_date=end_date,
+            status=GuestStatus.PENDING
+        )
+        db.session.add(invitation)
+        db.session.commit()
+
         logger.info(f"Guest added for resident ID {resident_id}")
         return jsonify({
-            'status': result['status'],
-            'message': result['message'],
+            'status': 'success',
+            'message': 'Guest added successfully',
             'guest': {
-                'id': result['guest'].id,
-                'name': result['guest'].name,
-                'resident_id': result['guest'].resident_id,
-                'created_at': result['guest'].created_at.isoformat()
+                'id': new_guest.id,
+                'name': new_guest.name,
+                'resident_id': new_guest.resident_id,
+                'created_at': new_guest.created_at.isoformat(),
+                'invitation': {
+                    'id': invitation.id,
+                    'end_date': invitation.end_date.isoformat(),
+                    'status': invitation.status.value
+                }
             }
         }), 200
 
     except ValueError as e:
         logger.error(f"ValueError adding guest: {str(e)}")
+        db.session.rollback()
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error adding guest: {str(e)}")
@@ -414,9 +492,17 @@ def verify_guest_face():
     if file.filename == '' or not allowed_file(file.filename):
         return jsonify({'error': 'Invalid or no file selected'}), 400
 
-    image_data = file.read()
     try:
+        # Read and encode the uploaded image for comparison display
+        image_data = file.read()
+        uploaded_image_b64 = base64.b64encode(image_data).decode('utf-8')
+        
+        # Generate embedding for the uploaded image
         test_embedding = facial_recognition().generate_embedding(image_data)
+        if test_embedding is None:
+            return jsonify({'error': 'No face detected in uploaded image'}), 400
+
+        # Find the best match among all guests
         guests = Guest.query.all()
         min_distance = float('inf')
         best_match = None
@@ -428,21 +514,66 @@ def verify_guest_face():
                 min_distance = distance
                 best_match = guest
 
-        threshold = 0.8
+        threshold = 0.8  # Adjust this threshold based on your needs
         if min_distance < threshold and best_match:
             current_invitation = best_match.get_current_invitation()
+            resident = best_match.resident
+            
             return jsonify({
-                'guest_id': best_match.id,
-                'name': best_match.name,
+                'match_found': True,
                 'distance': float(min_distance),
-                'invitation': {
-                    'id': current_invitation.id,
-                    'status': current_invitation.status.value
-                } if current_invitation else None
+                'uploaded_image': uploaded_image_b64,
+                'guest': {
+                    'id': best_match.id,
+                    'name': best_match.name,
+                    'face_image': base64.b64encode(best_match.face_image).decode('utf-8'),
+                    'created_at': best_match.created_at.isoformat(),
+                    'resident': {
+                        'id': resident.id,
+                        'name': resident.user.name,
+                        'email': resident.user.email,
+                        'homes': [{
+                            'section': h.home_section,
+                            'number': h.home_num,
+                            'apartment': h.home_appart
+                        } for h in resident.homes]
+                    } if resident else None,
+                    'current_invitation': {
+                        'id': current_invitation.id,
+                        'start_date': current_invitation.start_date.isoformat(),
+                        'end_date': current_invitation.end_date.isoformat(),
+                        'status': current_invitation.status.value,
+                        'created_at': current_invitation.created_at.isoformat()
+                    } if current_invitation else None,
+                    'all_invitations': [{
+                        'id': inv.id,
+                        'start_date': inv.start_date.isoformat(),
+                        'end_date': inv.end_date.isoformat(),
+                        'status': inv.status.value,
+                        'created_at': inv.created_at.isoformat()
+                    } for inv in best_match.invitations],
+                    'history': [{
+                        'id': h.id,
+                        'timestamp': h.timestamp.isoformat(),
+                        'invitation_id': h.invitation_id
+                    } for h in best_match.history]
+                }
             }), 200
-        return jsonify({'message': 'No match found', 'distance': float(min_distance)})
+        else:
+            return jsonify({
+                'match_found': False,
+                'message': 'No matching face found',
+                'distance': float(min_distance),
+                'uploaded_image': uploaded_image_b64,
+                'threshold': threshold
+            }), 200
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in verify_guest_face: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Error processing face verification',
+            'details': str(e)
+        }), 500
 
 @admin_bp.route('/guest/<int:guest_id>/car', methods=['POST'])
 @jwt_required()
@@ -521,7 +652,17 @@ def verify_resident_face():
             return jsonify({
                 'resident_id': best_match.id,
                 'name': best_match.user.name,
-                'distance': float(min_distance)
+                'email': best_match.user.email,
+                'face_image': base64.b64encode(best_match.face_image).decode('utf-8') if best_match.face_image else None,
+                'distance': float(min_distance),
+                'homes': [{
+                    'section': h.home_section,
+                    'number': h.home_num,
+                    'apartment': h.home_appart
+                } for h in best_match.homes],
+                'cars': [{
+                    'license_plate': c.license_plate
+                } for c in best_match.cars]
             }), 200
         return jsonify({'message': 'No match found', 'distance': float(min_distance)})
     except Exception as e:
@@ -555,6 +696,63 @@ def add_resident():
         logger.error(f"Error adding resident: {str(e)}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/guest/<int:guest_id>/invitations', methods=['GET'])
+@jwt_required()
+def get_guest_invitations(guest_id):
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != 'ADMIN':
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        guest = Guest.query.get_or_404(guest_id)
+        invitations = GuestInvitation.query.filter_by(guest_id=guest_id).order_by(GuestInvitation.created_at.desc()).all()
+
+        return jsonify({
+            'guest': {
+                'id': guest.id,
+                'name': guest.name,
+                'face_image': base64.b64encode(guest.face_image).decode('utf-8') if guest.face_image else None,
+            },
+            'invitations': [{
+                'id': inv.id,
+                'status': inv.status.value,
+                'start_date': inv.start_date.isoformat(),
+                'end_date': inv.end_date.isoformat(),
+                'created_at': inv.created_at.isoformat()
+            } for inv in invitations]
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting guest invitations: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/invitation/<int:invitation_id>', methods=['DELETE'])
+@jwt_required()
+def delete_invitation(invitation_id):
+    try:
+        current_user = User.query.get(get_jwt_identity())
+        if not current_user or current_user.role != 'ADMIN':
+            return jsonify({'error': 'Unauthorized'}), 403
+
+        invitation = GuestInvitation.query.get_or_404(invitation_id)
+        
+        # Store guest_id before deletion for response
+        guest_id = invitation.guest_id
+        
+        db.session.delete(invitation)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Invitation deleted successfully',
+            'guest_id': guest_id
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting invitation: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 # @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
 # @jwt_required()
 # def delete_user(user_id):

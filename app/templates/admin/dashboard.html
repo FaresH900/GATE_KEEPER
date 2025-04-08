@@ -29,6 +29,16 @@
         </nav>
     </aside>
 
+    <!-- Add this near the top of your dashboard template, right after the main content div -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="relative">
+            <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-primary-500"></div>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <div class="text-primary-500 text-xl font-semibold">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <main class="ml-64 p-8">
         <div id="content" class="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
@@ -131,12 +141,30 @@
             <h3 class="text-lg font-medium text-white">Add Face Data</h3>
             <form id="addFaceForm" enctype="multipart/form-data" class="mt-4">
                 <div class="space-y-4">
-                    <input type="number" name="resident_id" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Resident ID">
-                    <input type="file" name="image" accept="image/*" required class="mt-1 block w-full text-white">
+                    <input type="number" name="resident_id" required 
+                        class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" 
+                        placeholder="Resident ID">
+                    
+                    <div class="flex flex-col items-center">
+                        <label class="w-full flex flex-col items-center px-4 py-6 bg-gray-700 text-white rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-gray-600">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="mt-2 text-sm">Select face image</span>
+                            <input type="file" name="image" accept="image/*" required class="hidden" 
+                                onchange="previewFaceImage(this)">
+                        </label>
+                        
+                        <div id="facePreview" class="hidden mt-4">
+                            <img class="max-w-full h-48 object-cover rounded-lg" alt="Face preview">
+                        </div>
+                    </div>
                 </div>
                 <div class="mt-5 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('addFaceModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Add Face</button>
+                    <button type="button" onclick="closeModal('addFaceModal')" 
+                        class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
+                    <button type="submit" 
+                        class="px-4 py-2 bg-primary-600 text-white rounded-md">Add Face</button>
                 </div>
             </form>
         </div>
@@ -148,14 +176,25 @@
             <h3 class="text-lg font-medium text-white">Add Guest</h3>
             <form id="addGuestForm" enctype="multipart/form-data" class="mt-4">
                 <div class="space-y-4">
-                    <input type="number" name="resident_id" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Resident ID">
-                    <input type="text" name="name" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Name">
-                    <input type="date" name="end_date" class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white">
-                    <input type="file" name="image" accept="image/*" required class="mt-1 block w-full text-white">
+                    <input type="number" name="resident_id" required 
+                        class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" 
+                        placeholder="Resident ID">
+                    <input type="text" name="name" required 
+                        class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" 
+                        placeholder="Guest Name">
+                    <input type="date" name="end_date" 
+                        class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white">
+                    <div class="flex flex-col">
+                        <label class="text-sm text-gray-400 mb-1">Guest Photo</label>
+                        <input type="file" name="image" accept="image/*" required 
+                            class="mt-1 block w-full text-white">
+                    </div>
                 </div>
                 <div class="mt-5 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('addGuestModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Add Guest</button>
+                    <button type="button" onclick="closeModal('addGuestModal')" 
+                        class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
+                    <button type="submit" 
+                        class="px-4 py-2 bg-primary-600 text-white rounded-md">Add Guest</button>
                 </div>
             </form>
         </div>
@@ -184,49 +223,156 @@
     <!-- Add Invitation Modal -->
     <div id="addInvitationModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
         <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
-            <h3 class="text-lg font-medium text-white">Add Invitation</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="invitationModalTitle" class="text-lg font-medium text-white">Add Invitation</h3>
+                <button onclick="closeModal('addInvitationModal')" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
             <form id="addInvitationForm" class="mt-4">
+                <input type="hidden" name="guest_id">
                 <div class="space-y-4">
-                    <input type="number" name="guest_id" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white" placeholder="Guest ID">
-                    <input type="date" name="end_date" required class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white">
+                    <div class="flex flex-col">
+                        <label class="text-sm text-gray-400 mb-1">End Date</label>
+                        <input type="date" name="end_date" required 
+                            class="mt-1 block w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white">
+                    </div>
                 </div>
                 <div class="mt-5 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('addInvitationModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Add Invitation</button>
+                    <button type="button" onclick="closeModal('addInvitationModal')" 
+                        class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
+                    <button type="submit" 
+                        class="px-4 py-2 bg-primary-600 text-white rounded-md">Create Invitation</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Verify Guest Face Modal -->
+    <!-- Replace the existing Verify Guest Face Modal with this updated version -->
     <div id="verifyGuestFaceModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
-            <h3 class="text-lg font-medium text-white">Verify Guest Face</h3>
-            <form id="verifyGuestFaceForm" enctype="multipart/form-data" class="mt-4">
+        <div class="relative top-20 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-gray-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-white">Verify Guest Face</h3>
+                <button onclick="closeModal('verifyGuestFaceModal')" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Image Upload Form -->
+            <form id="verifyGuestFaceForm" enctype="multipart/form-data" class="mb-6">
                 <div class="space-y-4">
-                    <input type="file" name="image" accept="image/*" required class="mt-1 block w-full text-white">
-                </div>
-                <div class="mt-5 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('verifyGuestFaceModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Verify</button>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="w-full flex flex-col items-center px-4 py-6 bg-gray-700 text-white rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-gray-600">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="mt-2 text-sm">Select face image</span>
+                            <input type="file" name="image" accept="image/*" class="hidden" onchange="previewImage(this, 'guestImagePreview')"/>
+                        </label>
+                    </div>
+                    <div id="guestImagePreview" class="hidden">
+                        <img class="max-h-48 mx-auto rounded-lg" alt="Preview"/>
+                    </div>
+                    <button type="submit" class="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                        Verify Face
+                    </button>
                 </div>
             </form>
+
+            <!-- Results Display -->
+            <div id="guestVerificationResult" class="hidden">
+                <!-- Image Comparison -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-700 p-4 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Uploaded Image</h4>
+                        <img id="uploadedGuestImage" class="w-full h-48 object-cover rounded-lg" alt="Uploaded"/>
+                    </div>
+                    <div class="bg-gray-700 p-4 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Matched Guest</h4>
+                        <img id="matchedGuestImage" class="w-full h-48 object-cover rounded-lg" alt="Matched"/>
+                    </div>
+                </div>
+
+                <!-- Guest Information -->
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <h4 class="text-sm font-medium text-gray-300 mb-4">Guest Information</h4>
+                    <div id="guestInfo" class="grid grid-cols-2 gap-4 text-sm text-gray-300">
+                        <!-- Guest details will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Invitation Status -->
+                <div id="invitationStatus" class="mt-4 p-4 rounded-lg">
+                    <!-- Invitation details will be populated here -->
+                </div>
+            </div>
+
+            <!-- No Match Display -->
+            <div id="noMatchResult" class="hidden mt-4 p-4 bg-red-900/50 rounded-lg">
+                <p class="text-red-200 text-center">No matching face found</p>
+                <p id="noMatchDetails" class="text-gray-300 text-sm text-center mt-2"></p>
+            </div>
         </div>
     </div>
 
     <!-- Verify Resident Face Modal -->
     <div id="verifyResidentFaceModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
-            <h3 class="text-lg font-medium text-white">Verify Resident Face</h3>
-            <form id="verifyResidentFaceForm" enctype="multipart/form-data" class="mt-4">
+        <div class="relative top-20 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-gray-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-white">Verify Resident Face</h3>
+                <button onclick="closeModal('verifyResidentFaceModal')" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="verifyResidentFaceForm" enctype="multipart/form-data" class="mb-6">
                 <div class="space-y-4">
-                    <input type="file" name="image" accept="image/*" required class="mt-1 block w-full text-white">
-                </div>
-                <div class="mt-5 flex justify-end space-x-3">
-                    <button type="button" onclick="closeModal('verifyResidentFaceModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md">Verify</button>
+                    <div class="flex items-center justify-center w-full">
+                        <label class="w-full flex flex-col items-center px-4 py-6 bg-gray-700 text-white rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-gray-600">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="mt-2 text-sm">Select face image</span>
+                            <input type="file" name="image" accept="image/*" class="hidden" onchange="previewResidentImage(this)"/>
+                        </label>
+                    </div>
+                    <div id="uploadPreview" class="hidden">
+                        <img class="max-h-48 mx-auto rounded-lg" alt="Preview"/>
+                    </div>
+                    <button type="submit" class="w-full px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                        Verify Face
+                    </button>
                 </div>
             </form>
+
+            <!-- Results Display -->
+            <div id="residentVerificationResult" class="hidden mt-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-700 p-4 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Uploaded Image</h4>
+                        <img id="uploadedImage" class="w-full h-48 object-cover rounded-lg" alt="Uploaded"/>
+                    </div>
+                    <div class="bg-gray-700 p-4 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Stored Image</h4>
+                        <img id="storedImage" class="w-full h-48 object-cover rounded-lg" alt="Stored"/>
+                    </div>
+                </div>
+                
+                <div id="residentInfo" class="mt-4 bg-gray-700 p-4 rounded-lg">
+                    <!-- Resident information will be populated here -->
+                </div>
+            </div>
+
+            <div id="noMatchResult" class="hidden mt-4 p-4 bg-red-900/50 rounded-lg">
+                <p class="text-red-200 text-center">No matching face found</p>
+                <p id="noMatchDetails" class="text-gray-300 text-sm text-center mt-2"></p>
+            </div>
         </div>
     </div>
 
@@ -247,11 +393,224 @@
             </form>
         </div>
     </div>
+    
+    <!-- View All Invitations Modal -->
+    <div id="viewInvitationsModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-gray-800">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h3 id="invitationsModalTitle" class="text-lg font-medium text-white mb-1">Guest Invitations</h3>
+                    <p id="invitationsModalSubtitle" class="text-sm text-gray-400"></p>
+                </div>
+                <button onclick="closeModal('viewInvitationsModal')" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="mb-4 flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <div id="guestImageContainer" class="w-16 h-16 rounded-full overflow-hidden bg-gray-600"></div>
+                    <div>
+                        <h4 id="guestNameDisplay" class="text-white font-medium"></h4>
+                        <p id="guestIdDisplay" class="text-sm text-gray-400"></p>
+                    </div>
+                </div>
+                <button onclick="addInvitation(currentGuestId, currentGuestName)" 
+                    class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                    Add New Invitation
+                </button>
+            </div>
+
+            <div class="overflow-y-auto max-h-[400px]">
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Start Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">End Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Created</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invitationsTableBody" class="bg-gray-800 divide-y divide-gray-700">
+                        <!-- Invitations will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+// Add these variables at the top of your script
+let currentGuestId = null;
+let currentGuestName = null;
+
+// Add these new functions
+function viewAllInvitations(guestId) {
+    // Show loading state
+    openModal('viewInvitationsModal');
+    document.getElementById('invitationsTableBody').innerHTML = `
+        <tr>
+            <td colspan="5" class="px-6 py-4 text-center">
+                <div class="animate-pulse flex justify-center items-center">
+                    <div class="h-4 w-4 bg-primary-600 rounded-full"></div>
+                    <div class="ml-3 text-gray-400">Loading...</div>
+                </div>
+            </td>
+        </tr>
+    `;
+
+    // Fetch and display all invitations
+    fetch(`/admin/guest/${guestId}/invitations`, {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch invitations');
+        return response.json();
+    })
+    .then(data => {
+        // Update guest information in modal
+        document.getElementById('invitationsModalTitle').textContent = 'Guest Invitations';
+        document.getElementById('invitationsModalSubtitle').textContent = `${data.guest.name} (ID: ${data.guest.id})`;
+        document.getElementById('guestNameDisplay').textContent = data.guest.name;
+        document.getElementById('guestIdDisplay').textContent = `Guest ID: ${data.guest.id}`;
+
+        // Update guest image
+        const imageContainer = document.getElementById('guestImageContainer');
+        imageContainer.innerHTML = data.guest.face_image 
+            ? `<img src="data:image/jpeg;base64,${data.guest.face_image}" 
+                   class="w-full h-full object-cover" alt="${data.guest.name}"/>`
+            : `<svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                   <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8c0 2.208-1.79 4-3.998 4-2.208 0-3.998-1.792-3.998-4s1.79-4 3.998-4c2.208 0 3.998 1.792 3.998 4z"/>
+               </svg>`;
+
+        // Store current guest info for other operations
+        currentGuestId = data.guest.id;
+        currentGuestName = data.guest.name;
+
+        // Update invitations table
+        const tbody = document.getElementById('invitationsTableBody');
+        tbody.innerHTML = data.invitations.map(invitation => `
+            <tr>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                        ${invitation.status === 'ALLOWED' ? 
+                        'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
+                        ${invitation.status}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-300">
+                    ${new Date(invitation.start_date).toLocaleString()}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-300">
+                    ${new Date(invitation.end_date).toLocaleString()}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-300">
+                    ${new Date(invitation.created_at).toLocaleString()}
+                </td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="deleteInvitation(${invitation.id})"
+                        class="text-red-400 hover:text-red-300">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-400">No invitations found</td></tr>';
+    })
+    .catch(error => {
+        console.error('Error fetching invitations:', error);
+        showFlashMessage(error.message, 'error');
+        closeModal('viewInvitationsModal');
+    });
+}
+function deleteInvitation(invitationId) {
+    if (!confirm('Are you sure you want to delete this invitation?')) {
+        return;
+    }
+
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+    fetch(`/admin/invitation/${invitationId}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': getCsrfToken()
+        },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to delete invitation');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showFlashMessage('Invitation deleted successfully', 'success');
+        // Refresh the invitations list
+        viewAllInvitations({ id: currentGuestId, name: currentGuestName });
+        // Refresh the main guests list
+        loadGuests();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
+}
+
+function previewFaceImage(input) {
+    const preview = document.querySelector('#facePreview img');
+    const container = document.getElementById('facePreview');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            container.classList.remove('hidden');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+// Add image preview functionality
+function previewResidentImage(input) {
+    const preview = document.querySelector('#uploadPreview img');
+    const container = document.getElementById('uploadPreview');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            // Store the data URL for later use
+            preview.dataset.imageData = e.target.result;
+            container.classList.remove('hidden');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function previewImage(input, previewId) {
+    const preview = document.getElementById(previewId).querySelector('img');
+    const container = document.getElementById(previewId);
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            container.classList.remove('hidden');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
 // Utility Functions
 function openModal(modalId) {
     document.getElementById(modalId).classList.remove('hidden');
@@ -267,49 +626,178 @@ function getCsrfToken() {
         ?.split('=')[1];
 }
 
+// Update error handler
 function handleError(error, redirect = true) {
     console.error('Error:', error);
-    alert(error.message);
+    showToast(error.message || 'An error occurred');
     if (redirect && error.message.includes('401')) {
-        window.location.href = '/auth/login';
+        setTimeout(() => window.location.href = '/auth/login', 2000);
     }
 }
 
-// Load Functions
+// Then update the verification handler
+document.getElementById('verifyResidentFaceForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+    }
+
+    try {
+        const formData = new FormData(this);
+        const response = await fetch('/admin/verify_resident_face', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            credentials: 'include',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const resultDiv = document.getElementById('residentVerificationResult');
+        const noMatchDiv = document.getElementById('noMatchResult');
+        
+        // Get the preview image data URL
+        const previewImage = document.querySelector('#uploadPreview img');
+        const uploadedImageDataUrl = previewImage.dataset.imageData;
+
+        if (data.resident_id) {
+            // Use the preview image data URL for the uploaded image
+            document.getElementById('uploadedImage').src = uploadedImageDataUrl;
+            document.getElementById('storedImage').src = `data:image/jpeg;base64,${data.face_image}`;
+            
+            // Update resident information
+            const residentInfo = document.getElementById('residentInfo');
+            residentInfo.innerHTML = `
+                <div class="space-y-2">
+                    <p><span class="font-medium">Resident ID:</span> ${data.resident_id}</p>
+                    <p><span class="font-medium">Name:</span> ${data.name}</p>
+                    <p><span class="font-medium">Email:</span> ${data.email}</p>
+                    <p><span class="font-medium">Match Distance:</span> ${data.distance.toFixed(4)}</p>
+                </div>
+                <div class="space-y-2">
+                    <p class="font-medium">Homes:</p>
+                    ${data.homes.map(home => `
+                        <div class="bg-gray-800 p-2 rounded">
+                            Section: ${home.section}<br>
+                            Number: ${home.number}<br>
+                            Apartment: ${home.apartment}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            resultDiv.classList.remove('hidden');
+            noMatchDiv.classList.add('hidden');
+        } else {
+            resultDiv.classList.add('hidden');
+            document.getElementById('noMatchDetails').textContent = 
+                `Distance: ${data.distance.toFixed(4)}`;
+            noMatchDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showFlashMessage(error.message || 'Error during verification', 'error');
+    } finally {
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+        }
+    }
+});
+// Add this helper function if you haven't already
+function showFlashMessage(message, type = 'error') {
+    const flashContainer = document.getElementById('flashMessages');
+    const messageElement = document.createElement('div');
+    messageElement.className = `flash-message p-4 rounded-md ${
+        type === 'error' ? 'bg-red-900/70' : 'bg-green-900/70'
+    }`;
+    messageElement.innerHTML = `
+        <p class="text-sm text-center ${
+            type === 'error' ? 'text-red-200' : 'text-green-200'
+        }">${message}</p>
+    `;
+    
+    flashContainer.appendChild(messageElement);
+    
+    // Remove the message after 3 seconds
+    setTimeout(() => {
+        messageElement.remove();
+    }, 3000);
+}
+
+// Updated loadUsers function with more detailed information
 function loadUsers() {
     document.getElementById('contentTitle').textContent = 'Users';
     fetch('/admin/users', {
         method: 'GET',
         credentials: 'include'
     })
-    .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
         const tbody = document.getElementById('contentBody');
-        tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
-            <thead class="bg-gray-700">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Role</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-gray-800 divide-y divide-gray-700">
-                ${data.users.map(user => `
+        tbody.innerHTML = `
+            <div class="mb-4">
+                <input type="text" id="userSearch" placeholder="Search users..." 
+                    class="w-full p-2 bg-gray-700 border-transparent rounded-md text-white focus:border-primary-500">
+            </div>
+            <table class="min-w-full divide-y divide-gray-700">
+                <thead class="bg-gray-700">
                     <tr>
-                        <td class="px-6 py-4 text-sm text-gray-300">${user.name}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${user.email}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${user.role}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">
-                            <button onclick="editUser(${user.id}, '${user.name}', '${user.email}', '${user.role}')" class="text-blue-400 hover:text-blue-300">Edit</button>
-                        </td>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
                     </tr>
-                `).join('')}
-            </tbody>
-        </table>`;
+                </thead>
+                <tbody class="bg-gray-800 divide-y divide-gray-700">
+                    ${data.users.map(user => `
+                        <tr>
+                            <td class="px-6 py-4 text-sm text-gray-300">${user.id}</td>
+                            <td class="px-6 py-4 text-sm text-gray-300">${user.name}</td>
+                            <td class="px-6 py-4 text-sm text-gray-300">${user.email}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    ${user.role === 'ADMIN' ? 'bg-red-900 text-red-200' : 
+                                      user.role === 'RESIDENT' ? 'bg-green-900 text-green-200' : 
+                                      'bg-blue-900 text-blue-200'}">
+                                    ${user.role}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    ${user.resident_data ? 'bg-green-900 text-green-200' : 'bg-gray-900 text-gray-200'}">
+                                    ${user.resident_data ? 'Active' : 'Basic'}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                <button onclick="editUser(${JSON.stringify(user)})" 
+                                    class="text-blue-400 hover:text-blue-300 mr-2">Edit</button>
+                                <button onclick="viewUserDetails(${user.id})"
+                                    class="text-green-400 hover:text-green-300">Details</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+
+        // Add search functionality
+        document.getElementById('userSearch').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            const rows = tbody.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
     })
     .catch(error => handleError(error));
 }
@@ -320,43 +808,148 @@ function loadResidents() {
         method: 'GET',
         credentials: 'include'
     })
-    .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
         const tbody = document.getElementById('contentBody');
-        tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
-            <thead class="bg-gray-700">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Homes</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Cars</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-gray-800 divide-y divide-gray-700">
+        tbody.innerHTML = `
+            <div class="mb-4 flex justify-between items-center">
+                <input type="text" id="residentSearch" placeholder="Search residents..." 
+                    class="w-1/3 p-2 bg-gray-700 border-transparent rounded-md text-white focus:border-primary-500">
+                <div class="space-x-2">
+                    <button onclick="openModal('addHomeModal')" 
+                        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                        Add Home
+                    </button>
+                    <button onclick="openModal('addCarModal')"
+                        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                        Add Car
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 ${data.residents.map(resident => `
-                    <tr>
-                        <td class="px-6 py-4 text-sm text-gray-300">${resident.name}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${resident.email}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${resident.homes.map(h => `${h.section}-${h.number}-${h.apartment}`).join(', ')}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${resident.cars.map(c => c.license_plate).join(', ')}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">
-                            <button onclick="editResident(${resident.id}, '${resident.name}', '${resident.email}')" class="text-blue-400 hover:text-blue-300">Edit</button>
-                        </td>
-                    </tr>
+                    <div class="bg-gray-700 rounded-lg p-4 shadow-lg">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-600 text-gray-200">
+                                        ID: ${resident.id}
+                                    </span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-600 text-gray-200">
+                                        User ID: ${resident.user_id}
+                                    </span>
+                                </div>
+                                <div class="flex items-start space-x-4">
+                                    <!-- Face Image -->
+                                    <div class="w-24 h-24 rounded-lg overflow-hidden bg-gray-800 flex items-center justify-center">
+                                        ${resident.face_image 
+                                            ? `<img src="data:image/jpeg;base64,${resident.face_image}" 
+                                                 class="w-full h-full object-cover" 
+                                                 alt="${resident.name}'s face">`
+                                            : `<svg class="w-12 h-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                               </svg>`
+                                        }
+                                    </div>
+                                    <!-- Resident Info -->
+                                    <div>
+                                        <h3 class="text-lg font-medium text-white">${resident.name}</h3>
+                                        <p class="text-sm text-gray-300">${resident.email}</p>
+                                        <span class="inline-block mt-2 px-2 py-1 text-xs font-semibold rounded-full 
+                                            ${resident.has_face_data ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}">
+                                            ${resident.has_face_data ? 'Face Registered' : 'No Face Data'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-300 mb-1">Homes</h4>
+                                <div class="space-y-1">
+                                    ${resident.homes.map(home => `
+                                        <div class="text-sm text-gray-400 bg-gray-800 rounded p-2">
+                                            ${home.section}-${home.number}-${home.apartment}
+                                        </div>
+                                    `).join('') || '<p class="text-sm text-gray-400">No homes registered</p>'}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-300 mb-1">Cars</h4>
+                                <div class="space-y-1">
+                                    ${resident.cars.map(car => `
+                                        <div class="text-sm text-gray-400 bg-gray-800 rounded p-2">
+                                            ${car.license_plate}
+                                        </div>
+                                    `).join('') || '<p class="text-sm text-gray-400">No cars registered</p>'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 flex justify-end space-x-2">
+                            <button onclick="editResident(${JSON.stringify({
+                                id: resident.id,
+                                user_id: resident.user_id,
+                                name: resident.name,
+                                email: resident.email
+                            })})"
+                                class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                Edit
+                            </button>
+                            ${!resident.has_face_data ? `
+                                <button onclick="addFaceData(${resident.id})"
+                                    class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                                    Add Face
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
                 `).join('')}
-            </tbody>
-        </table>`;
+            </div>
+        `;
+
+        // Add search functionality
+        document.getElementById('residentSearch').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            const cards = document.querySelectorAll('.grid > div');
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
     })
     .catch(error => handleError(error));
 }
 
+// Add this function to handle invitation creation
+function addInvitation(guestId, guestName) {
+    // Update the modal form with guest information
+    const form = document.getElementById('addInvitationForm');
+    form.guest_id.value = guestId;
+    
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    form.end_date.min = today;
+    
+    // Set default end date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    form.end_date.value = tomorrow.toISOString().split('T')[0];
+
+    // Update modal title to include guest name
+    document.getElementById('invitationModalTitle').textContent = `Add Invitation for ${guestName}`;
+    
+    loadGuests();
+    openModal('addInvitationModal');
+}
+
+// Update the loadGuests function to include proper invitation handling
 function loadGuests() {
     document.getElementById('contentTitle').textContent = 'Guests';
-    fetch('/admin/guests', {  // Assuming a new /admin/guests route
+    fetch('/admin/guests', {
         method: 'GET',
         credentials: 'include'
     })
@@ -366,30 +959,263 @@ function loadGuests() {
     })
     .then(data => {
         const tbody = document.getElementById('contentBody');
-        tbody.innerHTML = `<table class="min-w-full divide-y divide-gray-700">
-            <thead class="bg-gray-700">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Resident ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Invitation End Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-gray-800 divide-y divide-gray-700">
-                ${data.guests.map(guest => `
-                    <tr>
-                        <td class="px-6 py-4 text-sm text-gray-300">${guest.name}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${guest.resident_id || 'N/A'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">${guest.current_invitation?.end_date || 'No Active Invitation'}</td>
-                        <td class="px-6 py-4 text-sm text-gray-300">
-                            <button onclick="editGuest(${guest.id}, '${guest.name}', ${guest.resident_id || 'null'}, '${guest.current_invitation?.end_date || ''}')" class="text-blue-400 hover:text-blue-300">Edit</button>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>`;
+        tbody.innerHTML = `
+            <div class="mb-4 flex justify-between items-center">
+                <input type="text" id="guestSearch" placeholder="Search guests..." 
+                    class="w-1/3 p-2 bg-gray-700 border-transparent rounded-md text-white focus:border-primary-500">
+                <button onclick="openModal('addGuestModal')" 
+                    class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                    Add New Guest
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${data.guests ? data.guests.map(guest => `
+                    <div class="bg-gray-700 rounded-lg overflow-hidden shadow-lg">
+                        <div class="p-4">
+                            <div class="flex items-start justify-between mb-4">
+                                <div class="flex items-center space-x-4">
+                                    <!-- Guest Image -->
+                                    <div class="w-16 h-16 rounded-full overflow-hidden bg-gray-600">
+                                        ${guest.face_image ? 
+                                            `<img src="data:image/jpeg;base64,${guest.face_image}" 
+                                                class="w-full h-full object-cover" alt="${guest.name}"/>` :
+                                            `<svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8c0 2.208-1.79 4-3.998 4-2.208 0-3.998-1.792-3.998-4s1.79-4 3.998-4c2.208 0 3.998 1.792 3.998 4z"/>
+                                            </svg>`
+                                        }
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-medium text-white">${guest.name}</h3>
+                                        <p class="text-sm text-gray-400">ID: ${guest.id}</p>
+                                        <p class="text-sm text-gray-400">Added: ${new Date(guest.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <!-- Status Badge -->
+                                ${guest.current_invitation ? `
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                        ${guest.current_invitation.status === 'ALLOWED' ? 
+                                        'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
+                                        ${guest.current_invitation.status}
+                                    </span>
+                                ` : `
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-900 text-red-200">
+                                        No Active Invitation
+                                    </span>
+                                `}
+                            </div>
+
+                            <!-- Resident Info -->
+                            <div class="bg-gray-800 rounded p-3 mb-3">
+                                <h4 class="text-sm font-medium text-gray-300 mb-2">Resident Information</h4>
+                                ${guest.resident ? `
+                                    <div class="space-y-2">
+                                        <div class="flex justify-between items-start">
+                                            <div>
+                                                <p class="text-sm text-gray-400">Name: ${guest.resident.name}</p>
+                                                <p class="text-sm text-gray-400">Email: ${guest.resident.email}</p>
+                                            </div>
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-900 text-blue-200">
+                                                Resident ID: ${guest.resident.id}
+                                            </span>
+                                        </div>
+                                        <div class="mt-2">
+                                            <p class="text-sm font-medium text-gray-300">Homes:</p>
+                                            <div class="grid grid-cols-1 gap-1 mt-1">
+                                                ${guest.resident.homes.map(home => `
+                                                    <div class="bg-gray-700/50 rounded p-2 text-sm">
+                                                        <div class="flex justify-between items-center">
+                                                            <span class="text-gray-300">
+                                                                Section ${home.section} - ${home.number}
+                                                            </span>
+                                                            <span class="text-gray-400">
+                                                                Apt: ${home.apartment}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                `).join('') || '<p class="text-sm text-gray-400">No homes registered</p>'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ` : '<p class="text-sm text-gray-400">No resident assigned</p>'}
+                            </div>
+
+                            <!-- Invitation Details -->
+                            <div class="bg-gray-800 rounded p-3 mb-3">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h4 class="text-sm font-medium text-gray-300">Invitations</h4>
+                                    <button onclick="viewAllInvitations(${guest.id})" 
+                                        class="text-xs text-blue-400 hover:text-blue-300">
+                                        View All Invitations
+                                    </button>
+                                </div>
+                                ${guest.current_invitation ? `
+                                    <div class="bg-gray-700/50 rounded p-2">
+                                        <div class="flex justify-between items-center">
+                                            <div>
+                                                <p class="text-sm text-gray-300">Current Invitation</p>
+                                                <p class="text-xs text-gray-400">
+                                                    Valid until: ${new Date(guest.current_invitation.end_date).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                                ${guest.current_invitation.status === 'ALLOWED' ? 
+                                                'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
+                                                ${guest.current_invitation.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ` : '<p class="text-sm text-gray-400">No active invitation</p>'}
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="flex justify-end space-x-2 mt-4">
+                                <button onclick="editGuest(${JSON.stringify(guest)})"
+                                    class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                    Edit
+                                </button>
+                                <button onclick="addInvitation(${guest.id}, '${guest.name}')"
+                                    class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                                    ${guest.current_invitation ? 'New Invitation' : 'Add Invitation'}
+                                </button>
+                                <button onclick="viewGuestHistory(${guest.id})"
+                                    class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700">
+                                    History
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('') : '<p class="text-center text-gray-400">No guests found</p>'}
+            </div>
+        `;
+
+        // Add search functionality
+        const searchInput = document.getElementById('guestSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchText = e.target.value.toLowerCase();
+                const cards = document.querySelectorAll('.grid > div');
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(searchText) ? '' : 'none';
+                });
+            });
+        }
     })
     .catch(error => handleError(error));
+}
+
+
+// Guest History Modal and Function
+function viewGuestHistory(guestId) {
+    fetch(`/admin/guest/${guestId}/history`, {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        const modalContent = `
+            <div class="fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full" id="guestHistoryModal">
+                <div class="relative top-20 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-gray-800">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-white">${data.guest_name}'s History</h3>
+                        <button onclick="document.getElementById('guestHistoryModal').remove()" 
+                            class="text-gray-400 hover:text-white">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="space-y-2">
+                        ${data.history.map(h => `
+                            <div class="bg-gray-700 rounded-lg p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-white">${new Date(h.timestamp).toLocaleString()}</span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-900 text-blue-200">
+                                        ID: ${h.invitation_id}
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('') || '<p class="text-gray-400 text-center">No history records found</p>'}
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalContent);
+    })
+    .catch(error => handleError(error));
+}
+
+// Add new helper functions for face verification
+function showVerificationResult(containerId, data, type) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = `
+        <div class="bg-gray-700 rounded-lg p-4 mb-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">Uploaded Image</h4>
+                    <img src="data:image/jpeg;base64,${data.uploaded_image}" 
+                        class="w-full h-48 object-cover rounded-lg" alt="Uploaded"/>
+                </div>
+                <div>
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">Matched ${type}</h4>
+                    <img src="data:image/jpeg;base64,${data.face_image}" 
+                        class="w-full h-48 object-cover rounded-lg" alt="Matched"/>
+                </div>
+            </div>
+            <div class="mt-4">
+                <p class="text-sm text-gray-300">
+                    <span class="font-medium">Match Distance:</span> 
+                    ${data.distance.toFixed(4)}
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+// Add loading indicator
+function showLoading(show = true) {
+    const loadingId = 'loadingOverlay';
+    let loader = document.getElementById(loadingId);
+    
+    if (show) {
+        if (!loader) {
+            const loaderHTML = `
+                <div id="${loadingId}" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-gray-800 rounded-lg p-4 flex items-center space-x-3">
+                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
+                        <span class="text-white">Loading...</span>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', loaderHTML);
+        }
+    } else if (loader) {
+        loader.remove();
+    }
+}
+
+// Add error toast notification
+function showToast(message, type = 'error') {
+    const toastId = 'toast-' + Date.now();
+    const toast = `
+        <div id="${toastId}" 
+            class="fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full
+            ${type === 'error' ? 'bg-red-900 text-red-200' : 'bg-green-900 text-green-200'}">
+            ${message}
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', toast);
+    
+    setTimeout(() => {
+        const toastElement = document.getElementById(toastId);
+        toastElement.style.transform = 'translateX(0)';
+    }, 100);
+
+    setTimeout(() => {
+        const toastElement = document.getElementById(toastId);
+        toastElement.style.transform = 'translateX(full)';
+        setTimeout(() => toastElement.remove(), 300);
+    }, 3000);
 }
 
 // Edit Functions
@@ -402,11 +1228,13 @@ function editUser(id, name, email, role) {
     openModal('editUserModal');
 }
 
-function editResident(id, name, email) {
+// Update the editResident function to handle the new data structure
+function editResident(residentData) {
     const form = document.getElementById('editResidentForm');
-    form.id.value = id;
-    form.name.value = name;
-    form.email.value = email;
+    form.id.value = residentData.id;
+    form.user_id.value = residentData.user_id;  // Add this field to your form if needed
+    form.name.value = residentData.name;
+    form.email.value = residentData.email;
     openModal('editResidentModal');
 }
 
@@ -519,42 +1347,90 @@ document.getElementById('addHomeForm').addEventListener('submit', function(e) {
 
 document.getElementById('addFaceForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    // Show loading state if exists
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+    }
+
     const formData = new FormData(this);
-    fetch(`/admin/resident/${this.resident_id.value}/face`, {
+    const residentId = this.resident_id.value;
+
+    fetch(`/admin/resident/${residentId}/face`, {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         credentials: 'include',
         body: formData
     })
     .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to update face data');
+            });
+        }
         return response.json();
     })
     .then(data => {
+        showFlashMessage('Face data added successfully', 'success');
         closeModal('addFaceModal');
-        loadResidents();
+        loadResidents(); // Refresh the residents list
     })
-    .catch(error => handleError(error));
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        // Hide loading overlay if exists
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+        }
+    });
 });
 
 document.getElementById('addGuestForm').addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+    }
+
     const formData = new FormData(this);
-    fetch(`/admin/resident/${this.resident_id.value}/guest`, {
+    const residentId = formData.get('resident_id');
+
+    // Log the form data for debugging
+    console.log('Submitting guest with resident_id:', residentId);
+
+    fetch(`/admin/resident/${residentId}/guest`, {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         credentials: 'include',
         body: formData
     })
     .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to add guest');
+            });
+        }
         return response.json();
     })
     .then(data => {
+        console.log('Guest added successfully:', data);
+        showFlashMessage('Guest added successfully', 'success');
         closeModal('addGuestModal');
-        loadGuests();
+        loadGuests();  // Refresh the guests list
     })
-    .catch(error => handleError(error));
+    .catch(error => {
+        console.error('Error adding guest:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+        }
+    });
 });
 
 document.getElementById('editGuestForm').addEventListener('submit', function(e) {
@@ -577,69 +1453,163 @@ document.getElementById('editGuestForm').addEventListener('submit', function(e) 
     .catch(error => handleError(error));
 });
 
+// Update the invitation form submission handler
 document.getElementById('addInvitationForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const formData = { end_date: this.end_date.value };
-    fetch(`/admin/guest/${this.guest_id.value}/invitation`, {
+    const formData = {
+        end_date: this.end_date.value
+    };
+    const guestId = this.guest_id.value;
+
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+    fetch(`/admin/guest/${guestId}/invitation`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        },
         credentials: 'include',
         body: JSON.stringify(formData)
     })
     .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to create invitation');
+            });
+        }
         return response.json();
     })
     .then(data => {
+        showFlashMessage('Invitation created successfully', 'success');
         closeModal('addInvitationModal');
-        loadGuests();
+        loadGuests(); // Refresh the guests list
     })
-    .catch(error => handleError(error));
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
 });
 
 document.getElementById('verifyGuestFaceForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = new FormData(this);
+    
+    // Show loading state
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
     fetch('/admin/verify_guest_face', {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         credentials: 'include',
         body: formData
     })
-    .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
-        closeModal('verifyGuestFaceModal');
-        document.getElementById('contentBody').innerHTML = data.guest_id ?
-            `<p>Matched Guest: ${data.name} (ID: ${data.guest_id}, Distance: ${data.distance})</p>` :
-            `<p>No match found (Distance: ${data.distance})</p>`;
+        const resultDiv = document.getElementById('guestVerificationResult');
+        const noMatchDiv = document.getElementById('noMatchResult');
+        
+        if (data.match_found) {
+            // Show comparison images
+            document.getElementById('uploadedImage').src = `data:image/jpeg;base64,${data.uploaded_image}`;
+            document.getElementById('matchedImage').src = `data:image/jpeg;base64,${data.guest.face_image}`;
+            
+            // Update guest information
+            const guestInfo = document.getElementById('guestInfo');
+            guestInfo.innerHTML = `
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- Guest Basic Info -->
+                    <div class="bg-gray-700/50 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Guest Information</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-300"><span class="font-medium">Name:</span> ${data.guest.name}</p>
+                                <p class="text-sm text-gray-300"><span class="font-medium">ID:</span> ${data.guest.id}</p>
+                                <p class="text-sm text-gray-300"><span class="font-medium">Match Distance:</span> ${data.distance.toFixed(4)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-300"><span class="font-medium">Created:</span> ${new Date(data.guest.created_at).toLocaleDateString()}</p>
+                                ${data.guest.current_invitation ? `
+                                    <p class="text-sm text-gray-300">
+                                        <span class="font-medium">Invitation Status:</span> 
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                            ${data.guest.current_invitation.status === 'ALLOWED' ? 
+                                            'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
+                                            ${data.guest.current_invitation.status}
+                                        </span>
+                                    </p>
+                                    <p class="text-sm text-gray-300">
+                                        <span class="font-medium">Valid Until:</span> 
+                                        ${new Date(data.guest.current_invitation.end_date).toLocaleDateString()}
+                                    </p>
+                                ` : `
+                                    <p class="text-sm text-red-300">No active invitation</p>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resident Information -->
+                    <div class="bg-gray-700/50 rounded-lg p-4">
+                        <h4 class="text-sm font-medium text-gray-300 mb-2">Resident Information</h4>
+                        ${data.guest.resident ? `
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-300"><span class="font-medium">Name:</span> ${data.guest.resident.name}</p>
+                                        <p class="text-sm text-gray-300"><span class="font-medium">Email:</span> ${data.guest.resident.email}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-300"><span class="font-medium">ID:</span> ${data.guest.resident.id}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-2">
+                                    <p class="text-sm font-medium text-gray-300 mb-1">Registered Homes:</p>
+                                    <div class="grid grid-cols-1 gap-2">
+                                        ${data.guest.resident.homes.map(home => `
+                                            <div class="bg-gray-800 rounded p-2">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-sm text-gray-300">
+                                                        Section ${home.section} - ${home.number}
+                                                    </span>
+                                                    <span class="text-sm text-gray-400">
+                                                        Apt: ${home.apartment}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        `).join('') || '<p class="text-sm text-gray-400">No homes registered</p>'}
+                                    </div>
+                                </div>
+                            </div>
+                        ` : '<p class="text-sm text-gray-400">No resident assigned</p>'}
+                    </div>
+                </div>
+            `;
+
+            resultDiv.classList.remove('hidden');
+            noMatchDiv.classList.add('hidden');
+        } else {
+            resultDiv.classList.add('hidden');
+            document.getElementById('noMatchDetails').textContent = 
+                `Distance: ${data.distance.toFixed(4)}`;
+            noMatchDiv.classList.remove('hidden');
+        }
     })
-    .catch(error => handleError(error));
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message || 'Error during verification', 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
 });
 
-document.getElementById('verifyResidentFaceForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    fetch('/admin/verify_resident_face', {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-        credentials: 'include',
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return response.json();
-    })
-    .then(data => {
-        closeModal('verifyResidentFaceModal');
-        document.getElementById('contentBody').innerHTML = data.resident_id ?
-            `<p>Matched Resident: ${data.name} (ID: ${data.resident_id}, Distance: ${data.distance})</p>` :
-            `<p>No match found (Distance: ${data.distance})</p>`;
-    })
-    .catch(error => handleError(error));
-});
 
 document.getElementById('editResidentForm').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -704,6 +1674,14 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(error => {
         handleError(error);
     });
+    
+    // Add file input change listener
+    const fileInput = document.querySelector('#verifyResidentFaceModal input[type="file"]');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            previewResidentImage(this);
+        });
+    }
 });
 </script>
 {% endblock %}

@@ -2,24 +2,67 @@ app/
 ├── config.py
 ├── extensions.py
 ├── __init__.py
-├── __pycache__
 ├── models
-│   ├── __pycache__
 │   ├── facial_recognition.py
 │   ├── guest.py
 │   ├── __init__.py
+│   ├── license_plate_recognizer_old.py
 │   ├── license_plate_recognizer.py
+│   ├── __pycache__
+│   │   ├── facial_recognition.cpython-311.pyc
+│   │   ├── guest.cpython-311.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   ├── license_plate_recognizer.cpython-311.pyc
+│   │   ├── token.cpython-311.pyc
+│   │   └── user.cpython-311.pyc
 │   ├── token.py
 │   └── user.py
+├── __pycache__
+│   ├── config.cpython-311.pyc
+│   ├── extensions.cpython-311.pyc
+│   └── __init__.cpython-311.pyc
 ├── routes
 │   ├── admin.py
 │   ├── api.py
 │   ├── auth.py
+│   ├── gatekeeper.py
 │   ├── __init__.py
 │   ├── __pycache__
+│   │   ├── admin.cpython-311.pyc
+│   │   ├── api.cpython-311.pyc
+│   │   ├── auth.cpython-311.pyc
+│   │   ├── gatekeeper.cpython-311.pyc
+│   │   ├── __init__.cpython-311.pyc
+│   │   └── resident.cpython-311.pyc
 │   └── resident.py
 ├── static
 │   ├── debug
+│   │   ├── debug_20250406_232235.jpg
+│   │   ├── debug_20250406_233555.jpg
+│   │   ├── debug_20250406_234054.jpg
+│   │   ├── debug_20250406_234507.jpg
+│   │   ├── debug_20250406_235244.jpg
+│   │   ├── debug_20250406_235337.jpg
+│   │   ├── debug_20250407_000142.jpg
+│   │   ├── debug_20250407_000408.jpg
+│   │   ├── debug_20250407_001133.jpg
+│   │   ├── debug_20250407_002836.jpg
+│   │   ├── debug_20250407_002921.jpg
+│   │   ├── debug_20250407_003226.jpg
+│   │   ├── debug_20250407_003305.jpg
+│   │   ├── debug_20250407_003401.jpg
+│   │   ├── debug_20250407_003511.jpg
+│   │   ├── debug_20250407_003617.jpg
+│   │   ├── debug_20250407_003822.jpg
+│   │   ├── debug_20250407_003844.jpg
+│   │   ├── debug_20250407_010001.jpg
+│   │   ├── debug_20250407_010003.jpg
+│   │   ├── debug_20250407_010153.jpg
+│   │   ├── debug_20250407_010217.jpg
+│   │   ├── debug_20250407_011616.jpg
+│   │   ├── debug_20250407_011638.jpg
+│   │   ├── debug_20250407_085842.jpg
+│   │   └── debug_20250407_085858.jpg
 │   └── uploads
 ├── templates
 │   ├── admin
@@ -36,12 +79,10 @@ app/
 │   ├── helpers.py
 │   ├── __init__.py
 │   └── __pycache__
+│       ├── helpers.cpython-311.pyc
+│       └── __init__.cpython-311.pyc
 └── run.py
-16 directories, 39 files
-
-
-
-
+16 directories, 68 files
 === File: run.py ===
 ======================================================================
 import os
@@ -130,6 +171,7 @@ from app.routes.auth import auth_bp
 from app.routes.api import api_bp
 from app.routes.admin import admin_bp
 from app.routes.resident import resident_bp
+from app.routes.gatekeeper import gatekeeper_bp
 from app.models.facial_recognition import FacialRecognition
 from app.models.license_plate_recognizer import LicensePlateRecognizer
 
@@ -205,6 +247,7 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(resident_bp, url_prefix='/resident')
+    app.register_blueprint(gatekeeper_bp, url_prefix='/gatekeeper')
 
     # Routes
     @app.route('/')
@@ -435,7 +478,7 @@ class GuestHistory(db.Model):
 
 ======================================================================
 
-=== File: models/license_plate_recognizer.py ===
+=== File: models/license_plate_recognizer_old.py ===
 ======================================================================
 from ultralytics import YOLO
 from PIL import Image
@@ -444,6 +487,7 @@ import cv2
 import numpy as np
 import os
 from time import time
+from datetime import datetime
 
 class LicensePlateRecognizer:
     VERSION = "1.0.0"
@@ -457,10 +501,10 @@ class LicensePlateRecognizer:
             os.makedirs(debug_dir)  # Create app/static/debug/ if it doesn’t exist
     
     def save_debug_image(self, image, texts):
-            filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-            debug_path = os.path.join(self.debug_dir, filename)
-            cv2.imwrite(debug_path, image)
-            return f"/static/debug/{filename}"  # Return URL path
+        filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        debug_path = os.path.join(self.debug_dir, filename)
+        cv2.imwrite(debug_path, image)
+        return f"/static/debug/{filename}"  # Return URL path
     
     def crop_plate(self, img):
         # Perform prediction on the image
@@ -508,8 +552,11 @@ class LicensePlateRecognizer:
         return text, prob, bbox
 
     def detect_text(self, cropped_image):
-        # Convert image to BGR if needed
-        image = cv2.cvtColor(np.array(cropped_image), cv2.COLOR_RGB2BGR) if cropped_image.shape[-1] == 3 else cropped_image
+        # Convert PIL Image to NumPy array first
+        image_array = np.array(cropped_image)
+        
+        # Convert to BGR if the image has 3 channels (RGB)
+        image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR) if len(image_array.shape) == 3 and image_array.shape[-1] == 3 else image_array
 
         # Split the image horizontally into two halves
         height, width = image.shape[:2]
@@ -551,11 +598,142 @@ class LicensePlateRecognizer:
             right_bbox[:, 0] += mid_point  # Shift x-coordinates to match combined image
             cv2.polylines(combined_image, [right_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
 
-        # fname = f"{self.debug_dir}/plate_{str(int(time()*1000)%10000000)}.jpg"
-        # cv2.imwrite(fname, combined_image)
-        # return [detected_texts, texts_only, fname]
-        debug_url = self.save_debug_image(image, detected_texts)
-        cv2.imwrite(debug_url, combined_image)
+        debug_url = self.save_debug_image(combined_image, detected_texts)
+        return [detected_texts, texts_only, debug_url]
+        
+    @staticmethod
+    def clean_text(texts):
+        tmp = []
+        for t in texts:
+            t = t.replace(' ','')
+            if not(ord(t[0]) >= 1569 and ord(t[0]) <= 1610):
+                tmp.append(t[::-1])
+            else:
+                tmp.append(t)
+        return tmp
+======================================================================
+
+=== File: models/license_plate_recognizer.py ===
+======================================================================
+from ultralytics import YOLO
+from PIL import Image
+from paddleocr import PaddleOCR
+import cv2
+import numpy as np
+import os
+from time import time
+from datetime import datetime
+
+class LicensePlateRecognizer:
+    VERSION = "1.0.0"
+    def __init__(self, model_path, debug_dir):
+        self.model = YOLO(model_path)
+        self.ocr = PaddleOCR(use_angle_cls=True, lang='ar', 
+                            det_db_box_thresh=0.7, 
+                            det_db_unclip_ratio=1.7)
+        self.debug_dir = debug_dir
+        if not os.path.exists(debug_dir):
+            os.makedirs(debug_dir)  # Create app/static/debug/ if it doesn’t exist
+    
+    def save_debug_image(self, image, texts):
+        filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        debug_path = os.path.join(self.debug_dir, filename)
+        cv2.imwrite(debug_path, image)
+        return f"/static/debug/{filename}"  # Return URL path
+    
+    def crop_plate(self, img):
+        # Perform prediction on the image
+        results = self.model.predict(source=img, conf=0.25)
+
+        # Open the image
+        image = Image.open(img)
+
+        for result in results:
+            if result.boxes is not None and len(result.boxes) > 0:
+                max_width = -1
+                selected_box = None
+
+                # Iterate through all detected boxes to find the one with the maximum width
+                for box in result.boxes:
+                    res = box.xyxy[0]  # Get the coordinates of the bounding box
+                    width = res[2].item() - res[0].item()  # Calculate width (x_max - x_min)
+
+                    if width > max_width:
+                        max_width = width
+                        selected_box = res  # Store the coordinates of the selected box
+
+                if selected_box is not None:
+                    x_min = selected_box[0].item()
+                    y_min = selected_box[1].item()
+                    x_max = selected_box[2].item()
+                    y_max = selected_box[3].item()
+
+                    # Crop the image using the bounding box coordinates
+                    cropped_image = image.crop((x_min, y_min, x_max, y_max))
+                    return cropped_image
+            else:
+                print("No bounding boxes detected.")
+        return None
+
+    def get_lower_box(self, results):
+        if not results or not results[0]:
+            return None, None, None
+        if len(results[0]) == 1:
+            bbox, (text, prob) = results[0][0]
+            return text, prob, bbox
+        # Multiple boxes: select the one with the highest bottom y-coordinate
+        lower_box = max(results[0], key=lambda x: max([p[1] for p in x[0]]))  # Max y of bbox
+        bbox, (text, prob) = lower_box
+        return text, prob, bbox
+
+    def detect_text(self, cropped_image):
+        # Convert PIL Image to NumPy array first
+        image_array = np.array(cropped_image)
+        
+        # Convert to BGR if the image has 3 channels (RGB)
+        image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR) if len(image_array.shape) == 3 and image_array.shape[-1] == 3 else image_array
+
+        # Split the image horizontally into two halves
+        height, width = image.shape[:2]
+        mid_point = width // 2
+        left_half = image[:, :mid_point, :]  # Left half
+        right_half = image[:, mid_point:, :]  # Right half
+
+        # Perform OCR on each half and select the lower box
+        detected_texts = []
+        texts_only = []
+        left_bbox = None
+        right_bbox = None
+
+        # OCR on left half
+        left_results = self.ocr.ocr(left_half, cls=True)
+        if left_results and left_results[0]:
+            left_text, left_prob, left_bbox = self.get_lower_box(left_results)
+            if left_text:
+                detected_texts.append((left_text, left_prob))
+                texts_only.append(left_text)
+
+        # OCR on right half
+        right_results = self.ocr.ocr(right_half, cls=True)
+        if right_results and right_results[0]:
+            right_text, right_prob, right_bbox = self.get_lower_box(right_results)
+            if right_text:
+                detected_texts.append((right_text, right_prob))
+                texts_only.append(right_text)
+
+        # Combine the halves back for visualization
+        combined_image = np.hstack((left_half, right_half))
+
+        # Draw bounding boxes on the combined image
+        if left_bbox is not None:
+            left_bbox = np.array(left_bbox).astype(int)
+            cv2.polylines(combined_image, [left_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
+        if right_bbox is not None:
+            right_bbox = np.array(right_bbox).astype(int)
+            right_bbox[:, 0] += mid_point  # Shift x-coordinates to match combined image
+            cv2.polylines(combined_image, [right_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
+
+        debug_url = self.save_debug_image(combined_image, detected_texts)
         return [detected_texts, texts_only, debug_url]
         
     @staticmethod
@@ -954,50 +1132,68 @@ def update_resident_face(resident_id):
 
 @admin_bp.route('/resident/<int:resident_id>/guest', methods=['POST'])
 @jwt_required()
-def add_guest_to_resident(resident_id):
-    current_user = User.query.get(get_jwt_identity())
-    if not current_user or current_user.role != 'ADMIN':
+def add_guest(resident_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not user or user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {current_user_id}")
         return jsonify({'error': 'Unauthorized'}), 403
 
-    resident = Resident.query.get(resident_id)
-    if not resident:
+    resident = User.query.get(resident_id)
+    if not resident or resident.role != 'RESIDENT':
+        logger.info(f"Resident ID {resident_id} not found or not a resident")
         return jsonify({'error': 'Resident not found'}), 404
 
     try:
         name = request.form.get('name')
         if not name:
+            logger.error("Name is required")
             return jsonify({'error': 'Name is required'}), 400
 
         end_date_str = request.form.get('end_date')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') if end_date_str else datetime.now() + timedelta(days=1)
-
-        if 'image' in request.files:
-            image_data = request.files['image'].read()
+        end_date = None
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
         else:
+            end_date = datetime.now() + timedelta(days=1)
+
+        if 'image' not in request.files:
+            logger.error("No image provided")
             return jsonify({'error': 'Image is required'}), 400
 
-        embedding = facial_recognition().generate_embedding(image_data)
-        result = Guest.add_guest(name, embedding, end_date)
+        image_data = request.files['image'].read()
+        if not image_data:
+            logger.error("Empty image uploaded")
+            return jsonify({'error': 'No image data'}), 400
 
+        facial_recognition = current_app.facial_recognition  # From __init__.py
+        embedding = facial_recognition.generate_embedding(image_data)
+        if embedding is None:
+            logger.error("Failed to generate face embedding")
+            return jsonify({'error': 'Could not detect face in image'}), 400
+
+        result = Guest.add_guest(name, embedding, end_date, resident_id=resident_id)
+        
+        logger.info(f"Guest added for resident ID {resident_id}")
         return jsonify({
             'status': result['status'],
             'message': result['message'],
             'guest': {
                 'id': result['guest'].id,
                 'name': result['guest'].name,
-                'created_at': result['guest'].created_at.isoformat(),
-                'current_invitation': {
-                    'id': result['invitation'].id if 'invitation' in result else None,
-                    'start_date': result['invitation'].start_date.isoformat() if 'invitation' in result else None,
-                    'end_date': result['invitation'].end_date.isoformat() if 'invitation' in result else None,
-                    'status': result['invitation'].status.value if 'invitation' in result else None
-                } if 'invitation' in result else None
+                'resident_id': result['guest'].resident_id,
+                'created_at': result['guest'].created_at.isoformat()
             }
         }), 200
+
     except ValueError as e:
+        logger.error(f"ValueError adding guest: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
+        logger.error(f"Error adding guest: {str(e)}")
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 @admin_bp.route('/guest/<int:guest_id>/invitation', methods=['POST'])
 @jwt_required()
@@ -1164,6 +1360,34 @@ def verify_resident_face():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@admin_bp.route('/resident', methods=['POST'])
+@jwt_required()
+def add_resident():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not user or user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {current_user_id}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        data = request.get_json()
+        logger.info(f"Adding new resident with data: {data}")
+        if not data or 'email' not in data or 'password' not in data or 'name' not in data:
+            return jsonify({'error': 'Email, password, and name are required'}), 400
+
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'error': 'Email already exists'}), 400
+
+        new_resident = User(email=data['email'], name=data['name'], role='RESIDENT')
+        new_resident.set_password(data['password'])
+        db.session.add(new_resident)
+        db.session.commit()
+        logger.info(f"Resident added: {new_resident.email}")
+        return jsonify({'message': 'Resident added', 'user': new_resident.to_dict()}), 201
+    except Exception as e:
+        logger.error(f"Error adding resident: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 # @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
 # @jwt_required()
 # def delete_user(user_id):
@@ -1197,9 +1421,13 @@ import numpy as np
 import pickle
 from datetime import datetime, timedelta  
 from app.utils.helpers import allowed_file
+import logging
+from PIL import Image
 
 # Create the Blueprint
 api_bp = Blueprint('api', __name__)
+
+logger = logging.getLogger(__name__)
 
 # Use app.facial_recognition and app.recognizer instead of local instances
 facial_recognition = lambda: current_app.facial_recognition
@@ -1209,13 +1437,118 @@ recognizer = lambda: current_app.recognizer
 #     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
 
+# @api_bp.route('/recognize', methods=['POST'])
+# def recognize_plate():
+#     if 'image' not in request.files:
+#         return jsonify({'error': 'No image file provided'}), 400
+
+#     file = request.files['image']
+#     if file.filename == '':
+#         return jsonify({'error': 'No selected file'}), 400
+
+#     if file and allowed_file(file.filename):
+#         try:
+#             # Save uploaded file
+#             filename = secure_filename(file.filename)
+#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+#             file.save(filepath)
+
+#             # Process image
+#             cropped_plate = recognizer().crop_plate(filepath)
+            
+#             if cropped_plate is None:
+#                 return jsonify({'error': 'No license plate detected'}), 400
+
+#             # Detect text
+#             result = recognizer().detect_text(np.array(cropped_plate))
+#             cleaned_texts = recognizer().clean_text(result[1])
+
+#             return jsonify({
+#                 'status': 'success',
+#                 'texts': cleaned_texts,
+#                 'raw_result': result,
+#                 'debug_image': result[2]
+#             })
+
+#         except Exception as e:
+#             return jsonify({'error in /api/recognize ': str(e)}), 500
+
+#         finally:
+#             # Cleanup uploaded file
+#             if os.path.exists(filepath):
+#                 os.remove(filepath)
+
+#     return jsonify({'error': 'Invalid file type'}), 400
+
+# @api_bp.route('/recognize', methods=['POST'])
+# def recognize_plate():
+#     logger.info("Received request to /api/recognize")
+    
+#     if 'image' not in request.files:
+#         logger.info("No image file provided in request")
+#         return jsonify({'error': 'No image file provided'}), 400
+
+#     file = request.files['image']
+#     if file.filename == '':
+#         logger.info("No selected file (empty filename)")
+#         return jsonify({'error': 'No selected file'}), 400
+
+#     if file and allowed_file(file.filename):
+#         try:
+#             # Save uploaded file
+#             filename = secure_filename(file.filename)
+#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+#             logger.debug(f"Saving file to {filepath}")
+#             file.save(filepath)
+            
+#             # Verify file exists and has content
+#             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+#                 logger.info(f"File {filepath} is missing or empty")
+#                 raise Exception("Saved file is missing or empty")
+
+#             # Process image
+#             logger.debug("Cropping plate")
+#             cropped_plate = recognizer().crop_plate(filepath)
+#             if cropped_plate is None:
+#                 logger.info("No license plate detected in image")
+#                 return jsonify({'error': 'No license plate detected'}), 400
+
+#             # Convert to numpy array and detect text
+#             logger.info("Detecting text")
+#             result = recognizer().detect_text(np.array(cropped_plate))
+#             cleaned_texts = recognizer().clean_text(result[1])
+
+#             logger.info(f"Recognition successful: {cleaned_texts}")
+#             return jsonify({
+#                 'status': 'success',
+#                 'texts': cleaned_texts,
+#                 'raw_result': result,
+#                 'debug_image': result[2]
+#             })
+
+#         except Exception as e:
+#             logger.info(f"Error processing image: {str(e)}")
+#             return jsonify({'error': str(e)}), 500
+
+#         finally:
+#             # Cleanup uploaded file
+#             if os.path.exists(filepath):
+#                 logger.info(f"Removing temporary file {filepath}")
+#                 os.remove(filepath)
+
+#     logger.info(f"Invalid file type: {file.filename}")
+#     return jsonify({'error': 'Invalid file type'}), 400
 @api_bp.route('/recognize', methods=['POST'])
 def recognize_plate():
+    logger.info("Received request to /api/recognize")
+    
     if 'image' not in request.files:
+        logger.error("No image file provided in request")
         return jsonify({'error': 'No image file provided'}), 400
 
     file = request.files['image']
     if file.filename == '':
+        logger.error("No selected file (empty filename)")
         return jsonify({'error': 'No selected file'}), 400
 
     if file and allowed_file(file.filename):
@@ -1223,33 +1556,59 @@ def recognize_plate():
             # Save uploaded file
             filename = secure_filename(file.filename)
             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+            logger.info(f"Saving file to {filepath}")
             file.save(filepath)
+            
+            # Verify file exists and has content
+            if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                logger.error(f"File {filepath} is missing or empty")
+                raise Exception("Saved file is missing or empty")
+
+            # Check recognizer initialization
+            if recognizer() is None:
+                logger.error("Recognizer is not initialized")
+                raise Exception("License plate recognizer not initialized")
 
             # Process image
+            logger.info("Cropping plate")
             cropped_plate = recognizer().crop_plate(filepath)
-            
             if cropped_plate is None:
+                logger.error("No license plate detected in image")
                 return jsonify({'error': 'No license plate detected'}), 400
 
-            # Detect text
-            result = recognizer().detect_text(np.array(cropped_plate))
-            cleaned_texts = recognizer().clean_text(result[1])
+            # Log cropped plate details
+            from PIL import Image  # Ensure this is imported
+            logger.info(f"Cropped plate type: {type(cropped_plate)}, size: {cropped_plate.size if isinstance(cropped_plate, Image.Image) else 'N/A'}")
 
+            # Detect text
+            logger.info("Detecting text")
+            result = recognizer().detect_text(cropped_plate)
+            if not isinstance(result, list) or len(result) != 3:
+                logger.error(f"Invalid result format from detect_text: {result}")
+                raise Exception("Text detection returned invalid result")
+
+            detected_texts, texts_only, debug_url = result
+            cleaned_texts = recognizer().clean_text(texts_only)
+
+            logger.info(f"Recognition successful: {cleaned_texts}")
             return jsonify({
                 'status': 'success',
                 'texts': cleaned_texts,
-                'raw_result': result,
-                'debug_image': result[2]
+                'raw_result': detected_texts,
+                'debug_image': debug_url
             })
 
         except Exception as e:
+            logger.exception(f"Error processing image: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
         finally:
             # Cleanup uploaded file
             if os.path.exists(filepath):
+                logger.info(f"Removing temporary file {filepath}")
                 os.remove(filepath)
 
+    logger.error(f"Invalid file type: {file.filename}")
     return jsonify({'error': 'Invalid file type'}), 400
 
 @api_bp.route('/add_guest', methods=['POST'])
@@ -1391,6 +1750,104 @@ def health_check():
         'facial_recognition': 'loaded' if facial_recognition() else 'not loaded',
         'license_plate_recognizer': 'loaded' if recognizer() else 'not loaded'
     })
+
+@api_bp.route('/validate_resident_face', methods=['POST'])
+def validate_resident_face():
+    try:
+        # Get image data
+        if 'image' in request.files:
+            image_data = request.files['image'].read()
+        else:
+            image_data = request.form.get('image_data')
+            if not image_data:
+                return jsonify({'error': 'Image is required'}), 400
+
+        # Generate embedding using the existing facial_recognition structure
+        test_embedding = facial_recognition().generate_embedding(image_data)
+        
+        # Find match among residents (assuming a Resident model exists)
+        from app.models.resident import Resident  # Import here to avoid circular imports
+        residents = Resident.query.all()
+        min_distance = float('inf')
+        best_match = None
+
+        for resident in residents:
+            stored_embedding = pickle.loads(resident.embedding)
+            distance = np.linalg.norm(test_embedding - stored_embedding)
+            if distance < min_distance:
+                min_distance = distance
+                best_match = resident
+
+        threshold = 0.8  # Same threshold as validate_face
+        if min_distance < threshold and best_match:
+            return jsonify({
+                'name': best_match.name,
+                'distance': float(min_distance)
+            }), 200
+        else:
+            return jsonify({
+                'name': 'Unknown',
+                'distance': float(min_distance)
+            }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+@api_bp.route('/residents/search', methods=['GET'])
+def search_resident_by_plate():
+    plate = request.args.get('license_plate')
+    if not plate:
+        return jsonify({'error': 'License plate is required'}), 400
+
+    from app.models.resident import Resident  # Import here to avoid circular imports
+    resident = Resident.query.filter_by(license_plate=plate).first()
+    if resident:
+        return jsonify({
+            'status': 'success',
+            'resident': {
+                'id': resident.id,
+                'name': resident.name,
+                'license_plate': resident.license_plate
+            }
+        }), 200
+    else:
+        return jsonify({
+            'status': 'not_found',
+            'message': 'No resident found with this license plate'
+        }), 404
+
+@api_bp.route('/guests/search', methods=['GET'])
+def search_guest_by_plate():
+    plate = request.args.get('license_plate')
+    if not plate:
+        return jsonify({'error': 'License plate is required'}), 400
+
+    guest = Guest.query.filter_by(license_plate=plate).first()
+    if guest:
+        current_invitation = guest.get_current_invitation()
+        return jsonify({
+            'status': 'success',
+            'guest': {
+                'id': guest.id,
+                'name': guest.name,
+                'license_plate': guest.license_plate,
+                'current_invitation': {
+                    'id': current_invitation.id,
+                    'start_date': current_invitation.start_date.isoformat(),
+                    'end_date': current_invitation.end_date.isoformat(),
+                    'status': current_invitation.status.value
+                } if current_invitation else None
+            }
+        }), 200
+    else:
+        return jsonify({
+            'status': 'not_found',
+            'message': 'No guest found with this license plate'
+        }), 404
+
+
 ======================================================================
 
 === File: routes/auth.py ===
@@ -1577,6 +2034,25 @@ def test_auth():
             'status': 'error',
             'message': str(e)
         })
+======================================================================
+
+=== File: routes/gatekeeper.py ===
+======================================================================
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models.user import User
+
+gatekeeper_bp = Blueprint('gatekeeper', __name__)
+
+
+@gatekeeper_bp.route('/dashboard')
+@jwt_required()
+def dashboard():
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'GATEKEEPER':
+        return redirect(url_for('auth.login'))
+    return render_template('gatekeeper/dashboard.html', user=current_user)
+
 ======================================================================
 
 === File: routes/__init__.py ===
@@ -2724,13 +3200,420 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
 ======================================================================
 {% extends "base.html" %}
 
+{% block title %}Gatekeeper Dashboard - Gate Keeper{% endblock %}
+
+{% block extra_head %}
+<style>
+    .video-feed, .uploaded-image {
+        border: 2px solid #4a5568;
+        border-radius: 8px;
+        max-width: 100%;
+    }
+    .output-container {
+        background-color: #2d3748;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+    .control-btn {
+        transition: all 0.3s ease;
+    }
+    .control-btn:hover {
+        transform: scale(1.05);
+    }
+    .status-text {
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+    .tab {
+        cursor: pointer;
+        padding: 0.5rem 1rem;
+        border-bottom: 2px solid transparent;
+    }
+    .tab-active {
+        border-bottom-color: #3182ce;
+        color: #3182ce;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="min-h-screen bg-gray-900 p-6">
-    <div class="max-w-7xl mx-auto">
-        <h1 class="text-3xl font-bold text-white mb-8">Gatekeeper Dashboard</h1>
-        <!-- Add your gatekeeper dashboard content here -->
+<div class="min-h-screen bg-gray-900 p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-white">Gatekeeper Dashboard</h1>
+        <button id="logoutBtn" class="text-sm text-gray-300 hover:text-white">Logout</button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Camera Feed / Upload -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Input Source</h2>
+            <div class="flex space-x-4 mb-4">
+                <button id="cameraTab" class="tab tab-active">Camera</button>
+                <button id="uploadTab" class="tab">Upload Image</button>
+            </div>
+            <div id="cameraSection">
+                <video id="videoFeed" class="video-feed" autoplay playsinline></video>
+                <div class="mt-4 flex space-x-4">
+                    <button id="startCamera" class="control-btn px-4 py-2 bg-primary-600 text-white rounded-md">Start Camera</button>
+                    <button id="stopCamera" class="control-btn px-4 py-2 bg-red-600 text-white rounded-md" disabled>Stop Camera</button>
+                </div>
+            </div>
+            <div id="uploadSection" class="hidden">
+                <input type="file" id="imageUpload" accept="image/*" class="text-white">
+                <img id="uploadedImage" class="uploaded-image hidden" alt="Uploaded Image">
+            </div>
+        </div>
+
+        <!-- Recognition Controls -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">Recognition</h2>
+            <div class="flex space-x-4 mb-4">
+                <button id="recognizePlate" class="control-btn px-4 py-2 bg-green-600 text-white rounded-md" disabled>Recognize License Plate</button>
+                <button id="recognizeFace" class="control-btn px-4 py-2 bg-blue-600 text-white rounded-md" disabled>Recognize Face</button>
+            </div>
+            <div id="outputContainer" class="output-container">
+                <img id="outputImage" class="max-w-full h-auto hidden" alt="Processed Frame">
+                <p id="outputText" class="status-text text-gray-300 mt-2">Select an input and recognition type.</p>
+            </div>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Utility Functions
+function getCsrfToken() {
+    return document.cookie.split('; ')
+        .find(row => row.startsWith('csrf_access_token='))
+        ?.split('=')[1];
+}
+
+function handleError(error, redirect = true) {
+    console.error('Error:', error);
+    alert(error.message);
+    if (redirect && error.message.includes('401')) {
+        window.location.href = '/auth/login';
+    }
+}
+
+// Elements
+const video = document.getElementById('videoFeed');
+const uploadInput = document.getElementById('imageUpload');
+const uploadedImage = document.getElementById('uploadedImage');
+const recognizePlateBtn = document.getElementById('recognizePlate');
+const recognizeFaceBtn = document.getElementById('recognizeFace');
+const outputImage = document.getElementById('outputImage');
+const outputText = document.getElementById('outputText');
+const cameraTab = document.getElementById('cameraTab');
+const uploadTab = document.getElementById('uploadTab');
+const cameraSection = document.getElementById('cameraSection');
+const uploadSection = document.getElementById('uploadSection');
+const startCameraBtn = document.getElementById('startCamera');
+const stopCameraBtn = document.getElementById('stopCamera');
+let stream = null;
+let inputType = 'camera';  // Default to camera
+let selectedFile = null;   // Store the uploaded file
+const allowedExtensions = ['jpg', 'jpeg', 'png']; // Allowed file extensions
+
+// Tab Switching
+cameraTab.addEventListener('click', () => {
+    inputType = 'camera';
+    cameraTab.classList.add('tab-active');
+    uploadTab.classList.remove('tab-active');
+    cameraSection.classList.remove('hidden');
+    uploadSection.classList.add('hidden');
+    recognizePlateBtn.disabled = !stream;
+    recognizeFaceBtn.disabled = !stream;
+});
+
+uploadTab.addEventListener('click', () => {
+    inputType = 'upload';
+    uploadTab.classList.add('tab-active');
+    cameraTab.classList.remove('tab-active');
+    uploadSection.classList.remove('hidden');
+    cameraSection.classList.add('hidden');
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+        startCameraBtn.disabled = false;
+        stopCameraBtn.disabled = true;
+    }
+    recognizePlateBtn.disabled = !selectedFile;
+    recognizeFaceBtn.disabled = !selectedFile;
+});
+
+// Camera Handling
+startCameraBtn.addEventListener('click', async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        startCameraBtn.disabled = true;
+        stopCameraBtn.disabled = false;
+        if (inputType === 'camera') {
+            recognizePlateBtn.disabled = false;
+            recognizeFaceBtn.disabled = false;
+        }
+    } catch (error) {
+        handleError(error, false);
+    }
+});
+
+stopCameraBtn.addEventListener('click', () => {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+        startCameraBtn.disabled = false;
+        stopCameraBtn.disabled = true;
+        if (inputType === 'camera') {
+            recognizePlateBtn.disabled = true;
+            recognizeFaceBtn.disabled = true;
+        }
+    }
+});
+
+// Upload Handling
+uploadInput.addEventListener('change', (event) => {
+    selectedFile = event.target.files[0];
+    if (selectedFile) {
+        const extension = selectedFile.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes(extension)) {
+            alert('Invalid file type. Please upload a JPG, JPEG, or PNG image.');
+            selectedFile = null;
+            uploadedImage.classList.add('hidden');
+            if (inputType === 'upload') {
+                recognizePlateBtn.disabled = true;
+                recognizeFaceBtn.disabled = true;
+            }
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            uploadedImage.src = e.target.result;
+            uploadedImage.classList.remove('hidden');
+        };
+        reader.readAsDataURL(selectedFile);
+        if (inputType === 'upload') {
+            recognizePlateBtn.disabled = false;
+            recognizeFaceBtn.disabled = false;
+        }
+    } else {
+        selectedFile = null;
+        uploadedImage.classList.add('hidden');
+        if (inputType === 'upload') {
+            recognizePlateBtn.disabled = true;
+            recognizeFaceBtn.disabled = true;
+        }
+    }
+});
+
+// Send Image to API Endpoint
+function sendToApi(endpoint, file, filename) {
+    console.log(`Sending file to ${endpoint}:`, filename);
+    const formData = new FormData();
+    formData.append('image', file, filename);
+
+    return fetch(endpoint, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include',
+        body: formData
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Unknown server error');
+            });
+        }
+        return response.json();
+    });
+}
+
+// Search Residents and Guests by License Plate
+async function searchByLicensePlate(plateText) {
+    try {
+        const residentResponse = await fetch(`/api/residents/search?license_plate=${encodeURIComponent(plateText)}`, {
+            method: 'GET',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'include'
+        });
+        const residentData = await residentResponse.json();
+
+        const guestResponse = await fetch(`/api/guests/search?license_plate=${encodeURIComponent(plateText)}`, {
+            method: 'GET',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'include'
+        });
+        const guestData = await guestResponse.json();
+
+        if (residentData.status === 'success' && residentData.resident) {
+            return `Resident: ${residentData.resident.name} (Plate: ${residentData.resident.license_plate})`;
+        } else if (guestData.status === 'success' && guestData.guest) {
+            return `Guest: ${guestData.guest.name} (Plate: ${guestData.guest.license_plate}, Invitation: ${guestData.guest.current_invitation?.status || 'None'})`;
+        } else {
+            return `No resident or guest found for plate: ${plateText}`;
+        }
+    } catch (error) {
+        return `Search error: ${error.message}`;
+    }
+}
+
+// Recognize License Plate
+recognizePlateBtn.addEventListener('click', () => {
+    let filePromise;
+    if (inputType === 'camera') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    } else if (inputType === 'upload' && selectedFile) {
+        filePromise = Promise.resolve(selectedFile);
+    } else {
+        outputText.textContent = 'No image selected or captured.';
+        return;
+    }
+
+    filePromise.then(file => {
+        sendToApi('/api/recognize', file, inputType === 'camera' ? 'plate.jpg' : file.name)
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(data);
+                    // outputImage.src = `data:image/jpeg;base64,${data.debug_image}`;
+                    outputImage.src = `${window.location.origin}${data.debug_image}`;
+                    outputImage.classList.remove('hidden');
+                    const plateText = data.texts.join(', ') || 'Not Recognized';
+                    console.log(data);
+                    outputText.textContent = `License Plate: ${plateText}`;
+                    // searchByLicensePlate(plateText).then(searchResult => {
+                    //     outputText.textContent += `\n${searchResult}`;
+                    // });
+                } else {
+                    outputImage.classList.add('hidden');
+                    outputText.textContent = `Error: ${data.error}`;
+                }
+            })
+            .catch(error => {
+                outputImage.classList.add('hidden');
+                outputText.textContent = `Error: ${error.message}`;
+            });
+    });
+});
+
+// Search Residents and Guests by Face
+async function searchByFace(faceData) {
+    if (faceData.name !== 'Unknown') {
+        let result = `Recognized: ${faceData.name} (Distance: ${faceData.distance})`;
+        if (faceData.current_invitation) {
+            result += `\nInvitation: ${faceData.current_invitation.status} until ${faceData.current_invitation.end_date}`;
+            return result;
+        } else {
+            return result + `\nResident: No invitation data (assuming resident)`;
+        }
+    }
+
+    let filePromise;
+    if (inputType === 'camera') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    } else if (inputType === 'upload' && selectedFile) {
+        filePromise = Promise.resolve(selectedFile);
+    } else {
+        throw new Error('No image available');
+    }
+
+    const file = await filePromise;
+    const formData = new FormData();
+    formData.append('image', file, inputType === 'camera' ? 'face.jpg' : file.name);
+
+    try {
+        const residentResponse = await fetch('/api/validate_resident_face', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'include',
+            body: formData
+        });
+        const residentData = await residentResponse.json();
+
+        if (residentData.name && residentData.name !== 'Unknown') {
+            return `Resident: ${residentData.name} (Distance: ${residentData.distance})`;
+        } else {
+            return `No resident or guest match found (Distance: ${faceData.distance})`;
+        }
+    } catch (error) {
+        return `Face search error: ${error.message}`;
+    }
+}
+
+// Recognize Face
+recognizeFaceBtn.addEventListener('click', () => {
+    let filePromise;
+    if (inputType === 'camera') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+    } else if (inputType === 'upload' && selectedFile) {
+        filePromise = Promise.resolve(selectedFile);
+    } else {
+        outputText.textContent = 'No image selected or captured.';
+        return;
+    }
+
+    filePromise.then(file => {
+        sendToApi('/api/validate_face', file, inputType === 'camera' ? 'face.jpg' : file.name)
+            .then(data => {
+                outputImage.classList.add('hidden');
+                searchByFace(data).then(searchResult => {
+                    outputText.textContent = searchResult;
+                });
+            })
+            .catch(error => {
+                outputText.textContent = `Error: ${error.message}`;
+                outputImage.classList.add('hidden');
+            });
+    });
+});
+
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    fetch('/auth/logout', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+        credentials: 'include'
+    })
+    .then(response => response.ok ? window.location.href = '/' : Promise.reject(`HTTP error! status: ${response.status}`))
+    .catch(error => handleError(error, false));
+});
+
+// Initial Load
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/auth/check_token', { method: 'GET', credentials: 'include' })
+        .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! status: ${response.status}`))
+        .then(data => {
+            if (data.user.role !== 'GATEKEEPER') throw new Error('Unauthorized - Not a gatekeeper');
+        })
+        .catch(handleError);
+
+    fetch('/api/health', { method: 'GET', credentials: 'include' })
+        .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! status: ${response.status}`))
+        .then(data => {
+            console.log('API Health:', data);
+            if (data.facial_recognition !== 'loaded' || data.license_plate_recognizer !== 'loaded') {
+                outputText.textContent = 'Warning: Some services not loaded.';
+            }
+        })
+        .catch(error => console.error('Health check failed:', error));
+});
+</script>
 {% endblock %}
 ======================================================================
 
@@ -2779,3 +3662,4 @@ def allowed_file(filename):
 ======================================================================
 
 ======================================================================
+
