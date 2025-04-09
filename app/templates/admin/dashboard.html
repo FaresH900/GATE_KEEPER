@@ -1429,6 +1429,10 @@ function loadGuests() {
                                     class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">
                                     ${guest.current_invitation ? 'New Invitation' : 'Add Invitation'}
                                 </button>
+                                <button onclick="viewAllInvitations(${guest.id})"
+                                    class="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-green-700">
+                                    All Invitations
+                                </button>
                                 <button onclick="manageGuestCar(${guest.id}, '${guest.name}', '${guest.license_plate || ''}')"
                                     class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700">
                                     ${guest.license_plate ? 'Edit Car' : 'Add Car'}
