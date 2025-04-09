@@ -90,6 +90,7 @@ def get_guests():
                 'name': g.name,
                 'face_image': base64.b64encode(g.face_image).decode('utf-8') if g.face_image else None,
                 'created_at': g.created_at.isoformat(),
+                'license_plate': g.license_plate,
                 'resident': {
                     'id': g.resident.id,
                     'name': g.resident.user.name,

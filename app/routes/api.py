@@ -1,459 +1,26 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.extensions import db
-from app.models.guest import Guest, GuestInvitation, GuestStatus  
+from app.models.guest import Guest, GuestInvitation, GuestStatus  # Include GuestStatus
+from app.models.user import Resident, Car
 from app.config import Config
 from werkzeug.utils import secure_filename
 import os
 import cv2
-import numpy as np 
+import numpy as np
 import pickle
-from datetime import datetime, timedelta  
-from app.utils.helpers import allowed_file
 import logging
 from PIL import Image
 import base64
+from app.utils.helpers import allowed_file
 
 
-# Create the Blueprint
 api_bp = Blueprint('api', __name__)
-
 logger = logging.getLogger(__name__)
 
-# Use app.facial_recognition and app.recognizer instead of local instances
+# Use app.facial_recognition and app.recognizer
 facial_recognition = lambda: current_app.facial_recognition
 recognizer = lambda: current_app.recognizer
 
-# def allowed_file(filename):
-#     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
-
-
-# @api_bp.route('/recognize', methods=['POST'])
-# def recognize_plate():
-#     if 'image' not in request.files:
-#         return jsonify({'error': 'No image file provided'}), 400
-
-#     file = request.files['image']
-#     if file.filename == '':
-#         return jsonify({'error': 'No selected file'}), 400
-
-#     if file and allowed_file(file.filename):
-#         try:
-#             # Save uploaded file
-#             filename = secure_filename(file.filename)
-#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-#             file.save(filepath)
-
-#             # Process image
-#             cropped_plate = recognizer().crop_plate(filepath)
-            
-#             if cropped_plate is None:
-#                 return jsonify({'error': 'No license plate detected'}), 400
-
-#             # Detect text
-#             result = recognizer().detect_text(np.array(cropped_plate))
-#             cleaned_texts = recognizer().clean_text(result[1])
-
-#             return jsonify({
-#                 'status': 'success',
-#                 'texts': cleaned_texts,
-#                 'raw_result': result,
-#                 'debug_image': result[2]
-#             })
-
-#         except Exception as e:
-#             return jsonify({'error in /api/recognize ': str(e)}), 500
-
-#         finally:
-#             # Cleanup uploaded file
-#             if os.path.exists(filepath):
-#                 os.remove(filepath)
-
-#     return jsonify({'error': 'Invalid file type'}), 400
-
-# @api_bp.route('/recognize', methods=['POST'])
-# def recognize_plate():
-#     logger.info("Received request to /api/recognize")
-    
-#     if 'image' not in request.files:
-#         logger.info("No image file provided in request")
-#         return jsonify({'error': 'No image file provided'}), 400
-
-#     file = request.files['image']
-#     if file.filename == '':
-#         logger.info("No selected file (empty filename)")
-#         return jsonify({'error': 'No selected file'}), 400
-
-#     if file and allowed_file(file.filename):
-#         try:
-#             # Save uploaded file
-#             filename = secure_filename(file.filename)
-#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-#             logger.debug(f"Saving file to {filepath}")
-#             file.save(filepath)
-            
-#             # Verify file exists and has content
-#             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-#                 logger.info(f"File {filepath} is missing or empty")
-#                 raise Exception("Saved file is missing or empty")
-
-#             # Process image
-#             logger.debug("Cropping plate")
-#             cropped_plate = recognizer().crop_plate(filepath)
-#             if cropped_plate is None:
-#                 logger.info("No license plate detected in image")
-#                 return jsonify({'error': 'No license plate detected'}), 400
-
-#             # Convert to numpy array and detect text
-#             logger.info("Detecting text")
-#             result = recognizer().detect_text(np.array(cropped_plate))
-#             cleaned_texts = recognizer().clean_text(result[1])
-
-#             logger.info(f"Recognition successful: {cleaned_texts}")
-#             return jsonify({
-#                 'status': 'success',
-#                 'texts': cleaned_texts,
-#                 'raw_result': result,
-#                 'debug_image': result[2]
-#             })
-
-#         except Exception as e:
-#             logger.info(f"Error processing image: {str(e)}")
-#             return jsonify({'error': str(e)}), 500
-
-#         finally:
-#             # Cleanup uploaded file
-#             if os.path.exists(filepath):
-#                 logger.info(f"Removing temporary file {filepath}")
-#                 os.remove(filepath)
-
-#     logger.info(f"Invalid file type: {file.filename}")
-#     return jsonify({'error': 'Invalid file type'}), 400
-# @api_bp.route('/recognize', methods=['POST'])
-# def recognize_plate():
-#     logger.info("Received request to /api/recognize")
-    
-#     if 'image' not in request.files:
-#         logger.error("No image file provided in request")
-#         return jsonify({'error': 'No image file provided'}), 400
-
-#     file = request.files['image']
-#     if file.filename == '':
-#         logger.error("No selected file (empty filename)")
-#         return jsonify({'error': 'No selected file'}), 400
-
-#     if file and allowed_file(file.filename):
-#         try:
-#             # Save uploaded file
-#             filename = secure_filename(file.filename)
-#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-#             logger.info(f"Saving file to {filepath}")
-#             file.save(filepath)
-            
-#             # Verify file exists and has content
-#             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-#                 logger.error(f"File {filepath} is missing or empty")
-#                 raise Exception("Saved file is missing or empty")
-
-#             # Check recognizer initialization
-#             if recognizer() is None:
-#                 logger.error("Recognizer is not initialized")
-#                 raise Exception("License plate recognizer not initialized")
-
-#             # Process image
-#             logger.info("Cropping plate")
-#             cropped_plate = recognizer().crop_plate(filepath)
-#             if cropped_plate is None:
-#                 logger.error("No license plate detected in image")
-#                 return jsonify({'error': 'No license plate detected'}), 400
-
-#             # Log cropped plate details
-#             from PIL import Image  # Ensure this is imported
-#             logger.info(f"Cropped plate type: {type(cropped_plate)}, size: {cropped_plate.size if isinstance(cropped_plate, Image.Image) else 'N/A'}")
-
-#             # Detect text
-#             logger.info("Detecting text")
-#             result = recognizer().detect_text(cropped_plate)
-#             if not isinstance(result, list) or len(result) != 3:
-#                 logger.error(f"Invalid result format from detect_text: {result}")
-#                 raise Exception("Text detection returned invalid result")
-
-#             detected_texts, texts_only, debug_url = result
-#             cleaned_texts = recognizer().clean_text(texts_only)
-
-#             logger.info(f"Recognition successful: {cleaned_texts}")
-#             return jsonify({
-#                 'status': 'success',
-#                 'texts': cleaned_texts,
-#                 'raw_result': detected_texts,
-#                 'debug_image': debug_url
-#             })
-
-#         except Exception as e:
-#             logger.exception(f"Error processing image: {str(e)}")
-#             return jsonify({'error': str(e)}), 500
-
-#         finally:
-#             # Cleanup uploaded file
-#             if os.path.exists(filepath):
-#                 logger.info(f"Removing temporary file {filepath}")
-#                 os.remove(filepath)
-
-#     logger.error(f"Invalid file type: {file.filename}")
-#     return jsonify({'error': 'Invalid file type'}), 400
-
-# app/routes/api.py
-
-# @api_bp.route('/recognize', methods=['POST'])
-# def recognize_plate():
-#     logger.info("Received request to /api/recognize")
-    
-#     if 'image' not in request.files:
-#         logger.error("No image file provided in request")
-#         return jsonify({'error': 'No image file provided'}), 400
-
-#     file = request.files['image']
-#     if file.filename == '':
-#         logger.error("No selected file (empty filename)")
-#         return jsonify({'error': 'No selected file'}), 400
-
-#     if file and allowed_file(file.filename):
-#         try:
-#             # Save uploaded file
-#             filename = secure_filename(file.filename)
-#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-#             logger.info(f"Saving file to {filepath}")
-#             file.save(filepath)
-            
-#             # Verify file exists and has content
-#             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-#                 logger.error(f"File {filepath} is missing or empty")
-#                 raise Exception("Saved file is missing or empty")
-
-#             # Check recognizer initialization
-#             if recognizer() is None:
-#                 logger.error("Recognizer is not initialized")
-#                 raise Exception("License plate recognizer not initialized")
-
-#             # Process image
-#             logger.info("Cropping plate")
-#             cropped_plate = recognizer().crop_plate(filepath)
-#             if cropped_plate is None:
-#                 logger.error("No license plate detected in image")
-#                 return jsonify({'error': 'No license plate detected'}), 400
-
-#             # Detect text
-#             logger.info("Detecting text")
-#             result = recognizer().detect_text(cropped_plate)
-#             if not isinstance(result, list) or len(result) != 3:
-#                 logger.error(f"Invalid result format from detect_text: {result}")
-#                 raise Exception("Text detection returned invalid result")
-
-#             detected_texts, texts_only, debug_url = result
-#             cleaned_texts = recognizer().clean_text(texts_only)
-#             logger.info(f"OCR OUTPUT:{result} cleaned_texts:{cleaned_texts}")
-
-#             # Convert debug image to base64
-#             debug_image_path = os.path.join(current_app.root_path, debug_url.lstrip('/'))
-#             with open(debug_image_path, "rb") as image_file:
-#                 debug_image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
-
-#             # cleaned_texts=cleaned_texts.join(' ')
-#             final=f"{cleaned_texts[0]}{cleaned_texts[1]}"
-#             logger.info(f"Recognition successful: {final}")
-#             return jsonify({
-#                 'status': 'success',
-#                 'texts': final,
-#                 'raw_result': detected_texts,
-#                 'debug_image': debug_image_base64,
-#                 'debug_url': debug_url
-#             })
-
-#         except Exception as e:
-#             logger.exception(f"Error processing image: {str(e)}")
-#             return jsonify({'error': str(e)}), 500
-
-#         finally:
-#             # Cleanup uploaded file
-#             if os.path.exists(filepath):
-#                 logger.info(f"Removing temporary file {filepath}")
-#                 os.remove(filepath)
-
-#     logger.error(f"Invalid file type: {file.filename}")
-#     return jsonify({'error': 'Invalid file type'}), 400
-
-# @api_bp.route('/recognize', methods=['POST'])
-# def recognize_plate():
-#     logger.info("Received request to /api/recognize")
-    
-#     if 'image' not in request.files:
-#         logger.error("No image file provided in request")
-#         return jsonify({'error': 'No image file provided'}), 400
-
-#     file = request.files['image']
-#     if file.filename == '':
-#         logger.error("No selected file (empty filename)")
-#         return jsonify({'error': 'No selected file'}), 400
-
-#     if file and allowed_file(file.filename):
-#         try:
-#             # Save uploaded file
-#             filename = secure_filename(file.filename)
-#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-#             logger.info(f"Saving file to {filepath}")
-#             file.save(filepath)
-            
-#             # Verify file exists and has content
-#             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-#                 logger.error(f"File {filepath} is missing or empty")
-#                 raise Exception("Saved file is missing or empty")
-
-#             # Check recognizer initialization
-#             if recognizer() is None:
-#                 logger.error("Recognizer is not initialized")
-#                 raise Exception("License plate recognizer not initialized")
-
-#             # Process image
-#             logger.info("Cropping plate")
-#             cropped_plate = recognizer().crop_plate(filepath)
-#             if cropped_plate is None:
-#                 logger.error("No license plate detected in image")
-#                 return jsonify({'error': 'No license plate detected'}), 400
-
-#             # Convert PIL Image to numpy array
-#             import numpy as np
-#             cropped_plate_np = np.array(cropped_plate)
-
-#             # Detect text
-#             logger.info("Detecting text")
-#             result = recognizer().detect_text(cropped_plate_np)  # Pass numpy array instead of PIL Image
-#             if not isinstance(result, list) or len(result) != 3:
-#                 logger.error(f"Invalid result format from detect_text: {result}")
-#                 raise Exception("Text detection returned invalid result")
-
-#             detected_texts, texts_only, debug_url = result
-#             cleaned_texts = recognizer().clean_text(texts_only)
-#             logger.info(f"OCR OUTPUT:{result} cleaned_texts:{cleaned_texts}")
-
-#             # Convert debug image to base64
-#             debug_image_path = os.path.join(current_app.root_path, debug_url.lstrip('/'))
-#             with open(debug_image_path, "rb") as image_file:
-#                 debug_image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
-
-#             final = f"{cleaned_texts[1][::-1]}{cleaned_texts[0]}"
-#             logger.info(f"Recognition successful: {final}")
-#             return jsonify({
-#                 'status': 'success',
-#                 'texts': final,
-#                 'raw_result': detected_texts,
-#                 'debug_image': debug_image_base64,
-#                 'debug_url': debug_url
-#             })
-
-#         except Exception as e:
-#             logger.exception(f"Error processing image: {str(e)}")
-#             return jsonify({'error': str(e)}), 500
-
-#         finally:
-#             # Cleanup uploaded file
-#             if os.path.exists(filepath):
-#                 logger.info(f"Removing temporary file {filepath}")
-#                 os.remove(filepath)
-
-#     logger.error(f"Invalid file type: {file.filename}")
-#     return jsonify({'error': 'Invalid file type'}), 400
-
-# @api_bp.route('/recognize', methods=['POST'])
-# def recognize_plate():
-#     logger.info("Received request to /api/recognize")
-    
-#     if 'image' not in request.files:
-#         logger.error("No image file provided in request")
-#         return jsonify({'error': 'No image file provided'}), 400
-
-#     file = request.files['image']
-#     if file.filename == '' or not allowed_file(file.filename):
-#         logger.error("Invalid or no file selected")
-#         return jsonify({'error': 'Invalid or no file selected'}), 400
-
-#     try:
-#         filename = secure_filename(file.filename)
-#         filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-#         logger.info(f"Saving file to {filepath}")
-#         file.save(filepath)
-        
-#         cropped_plate = recognizer().crop_plate(filepath)
-#         if cropped_plate is None:
-#             logger.error("No license plate detected in image")
-#             return jsonify({'error': 'No license plate detected'}), 400
-
-#         cropped_plate_np = np.array(cropped_plate)
-#         result = recognizer().detect_text(cropped_plate_np)
-#         if not isinstance(result, list) or len(result) != 3:
-#             logger.error(f"Invalid result format from detect_text: {result}")
-#             raise Exception("Text detection returned invalid result")
-
-#         detected_texts, texts_only, debug_url = result
-#         cleaned_texts = recognizer().clean_text(texts_only)
-#         final_plate = f"{cleaned_texts[1][::-1]}{cleaned_texts[0]}" if len(cleaned_texts) >= 2 else cleaned_texts[0]
-#         logger.info(f"Recognition successful: {final_plate}")
-
-#         debug_image_path = os.path.join(current_app.root_path, debug_url.lstrip('/'))
-#         with open(debug_image_path, "rb") as image_file:
-#             debug_image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
-
-#         # Check residents
-#         from app.models.user import Car
-#         car = Car.query.filter_by(license_plate=final_plate).first()
-#         if car:
-#             resident = car.resident
-#             return jsonify({
-#                 'status': 'success',
-#                 'type': 'resident',
-#                 'texts': final_plate,
-#                 'debug_image': debug_image_base64,
-#                 'debug_url': debug_url,
-#                 'resident': {
-#                     'id': resident.id,
-#                     'name': resident.user.name,
-#                     'email': resident.user.email
-#                 }
-#             }), 200
-
-#         # Check guests
-#         guest = Guest.query.filter_by(license_plate=final_plate).first()
-#         if guest:
-#             current_invitation = guest.get_current_invitation()
-#             return jsonify({
-#                 'status': 'success',
-#                 'type': 'guest',
-#                 'texts': final_plate,
-#                 'debug_image': debug_image_base64,
-#                 'debug_url': debug_url,
-#                 'guest': {
-#                     'id': guest.id,
-#                     'name': guest.name,
-#                     'resident_id': guest.resident_id,
-#                     'license_plate': guest.license_plate,
-#                     'current_invitation': current_invitation.to_dict() if current_invitation else None
-#                 }
-#             }), 200
-
-#         return jsonify({
-#             'status': 'success',
-#             'type': 'unknown',
-#             'texts': final_plate,
-#             'debug_image': debug_image_base64,
-#             'debug_url': debug_url
-#         }), 200
-
-#     except Exception as e:
-#         logger.exception(f"Error processing image: {str(e)}")
-#         return jsonify({'error': str(e)}), 500
-
-#     finally:
-#         if os.path.exists(filepath):
-#             logger.info(f"Removing temporary file {filepath}")
-#             os.remove(filepath)
 
 @api_bp.route('/recognize', methods=['POST'])
 def recognize_plate():
@@ -487,6 +54,7 @@ def recognize_plate():
         logger.info(f"detection: {detected_texts}")
         logger.info(f"texts_only: {texts_only}")
         logger.info(f"dbg_url: {debug_url}")
+
         if not texts_only:
             logger.info("No text detected in cropped plate")
             return jsonify({'error': 'No text detected'}), 400
@@ -496,19 +64,20 @@ def recognize_plate():
         logger.info(f"Cleaned texts: {cleaned_texts}")
 
         # Load debug image and convert to base64
-        debug_img = cv2.imread(os.path.join(app.config['DEBUG_DIR'], debug_url.split('/')[-1]))
+        debug_filepath = os.path.join(Config.DEBUG_DIR, debug_url.split('/')[-1])
+        debug_img = cv2.imread(debug_filepath)
         if debug_img is None:
-            logger.error(f"Failed to load debug image: {debug_url}")
-            raise ValueError("Failed to load debug image")
+            logger.error(f"Failed to load debug image: {debug_filepath}")
+            raise ValueError(f"Failed to load debug image from {debug_filepath}")
         _, buffer = cv2.imencode('.jpg', debug_img)
         debug_image_base64 = base64.b64encode(buffer).decode('utf-8')
 
         logger.info(f"Plate recognition successful: {cleaned_texts}")
         return jsonify({
             'status': 'success',
-            'texts': cleaned_texts,  # Return cleaned texts
+            'texts': cleaned_texts,  # Return list
             'debug_image': debug_image_base64,
-            'raw_result': detected_texts  # Full text with probabilities
+            'raw_result': detected_texts
         }), 200
 
     except RuntimeError as e:
@@ -522,137 +91,155 @@ def recognize_plate():
             os.remove(filepath)
             logger.info(f"Removing temporary file {filepath}")
 
-@api_bp.route('/add_guest', methods=['POST'])
-def add_guest():
+
+@api_bp.route('/verify_face', methods=['POST'])
+def verify_face():
+    logger.info("Received POST request to /api/verify_face")
+    if 'image' not in request.files:
+        logger.error("No image file provided in request")
+        return jsonify({'error': 'No image file provided'}), 400
+
+    file = request.files['image']
+    if not file or file.filename == '':
+        logger.error("Empty or invalid file received")
+        return jsonify({'error': 'Invalid or empty image file'}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+    os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+    file.save(filepath)
+    logger.info(f"Saving face image to {filepath}")
+
     try:
-        name = request.form.get('name')
-        if not name:
-            return jsonify({'error': 'Name is required'}), 400
+        with open(filepath, 'rb') as f:
+            image_data = f.read()
+        if not image_data:
+            raise ValueError("Image data is empty after saving")
 
-        # Get end date for invitation (optional)
-        end_date_str = request.form.get('end_date')
-        end_date = None
-        if end_date_str:
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-        else:
-            # Default to 1 day invitation
-            end_date = datetime.now() + timedelta(days=1)
-
-        # Get image data
-        if 'image' in request.files:
-            image_data = request.files['image'].read()
-        else:
-            image_data = request.form.get('image_data')
-            if not image_data:
-                return jsonify({'error': 'Image is required'}), 400
-
-        # Generate embedding
-        embedding = facial_recognition().generate_embedding(image_data)
-        
-        # Save to database
-        result = Guest.add_guest(name, embedding, end_date)
-        
-        return jsonify({
-            'status': result['status'],
-            'message': result['message'],
-            'guest': {
-                'id': result['guest'].id,
-                'name': result['guest'].name,
-                'created_at': result['guest'].created_at.isoformat(),
-                'current_invitation': {
-                    'id': result['invitation'].id if 'invitation' in result else None,
-                    'start_date': result['invitation'].start_date.isoformat() if 'invitation' in result else None,
-                    'end_date': result['invitation'].end_date.isoformat() if 'invitation' in result else None,
-                    'status': result['invitation'].status.value if 'invitation' in result else None
-                } if 'invitation' in result else None
-            }
-        }), 200
-
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@api_bp.route('/validate_face', methods=['POST'])
-def validate_face():
-    try:
-        # Get image data
-        if 'image' in request.files:
-            image_data = request.files['image'].read()
-        else:
-            image_data = request.form.get('image_data')
-            if not image_data:
-                return jsonify({'error': 'Image is required'}), 400
-
-        # Generate embedding
         test_embedding = facial_recognition().generate_embedding(image_data)
-        
-        # Find match using the method from Guest model
+
+        # Search residents
+        residents = Resident.query.all()
+        for resident in residents:
+            if resident.face_data_ref:
+                stored_embedding = pickle.loads(resident.face_data_ref)
+                distance = facial_recognition().compare_embeddings(test_embedding, stored_embedding)
+                if distance < 0.8:
+                    logger.info(f"Matched resident: {resident.user.name}, distance: {distance}")
+                    return jsonify({
+                        'status': 'success',
+                        'match': {
+                            'type': 'resident',
+                            'id': resident.id,
+                            'user_id': resident.user_id,
+                            'name': resident.user.name,
+                            'email': resident.user.email,
+                            'face_image': base64.b64encode(resident.face_image).decode('utf-8') if resident.face_image else None,
+                            'has_face_data': resident.face_data_ref is not None,
+                            'homes': [{
+                                'section': h.home_section,
+                                'number': h.home_num,
+                                'apartment': h.home_appart
+                            } for h in resident.homes],
+                            'cars': [{'license_plate': c.license_plate} for c in resident.cars]
+                        },
+                        'distance': float(distance)
+                    }), 200
+
+        # Search guests
         guests = Guest.query.all()
-        min_distance = float('inf')
-        best_match = None
-
         for guest in guests:
-            stored_embedding = pickle.loads(guest.embedding)
-            distance = np.linalg.norm(test_embedding - stored_embedding)
-            if distance < min_distance:
-                min_distance = distance
-                best_match = guest
+            if guest.embedding:
+                stored_embedding = pickle.loads(guest.embedding)
+                distance = facial_recognition().compare_embeddings(test_embedding, stored_embedding)
+                if distance < 0.8:
+                    current_invitation = guest.get_current_invitation()  # Call method
+                    resident = guest.resident
+                    logger.info(f"Matched guest: {guest.name}, distance: {distance}")
+                    return jsonify({
+                        'status': 'success',
+                        'match': {
+                            'type': 'guest',
+                            'id': guest.id,
+                            'name': guest.name,
+                            'created_at': guest.created_at.isoformat(),
+                            'face_image': base64.b64encode(guest.face_image).decode('utf-8') if guest.face_image else None,
+                            'license_plate': guest.license_plate,
+                            'current_invitation': {
+                                'status': current_invitation.status.value,
+                                'created_at': current_invitation.created_at.isoformat()
+                            } if current_invitation else None,
+                            'resident': {
+                                'name': resident.user.name,
+                                'email': resident.user.email
+                            } if resident else None,
+                            'invitations': [{'status': inv.status.value, 'created_at': inv.created_at.isoformat()} for inv in guest.invitations]
+                        },
+                        'distance': float(distance)
+                    }), 200
 
-        threshold = 0.8
-        if min_distance < threshold and best_match:
-            # Get current invitation
-            current_invitation = best_match.get_current_invitation()
-            
-            if not current_invitation:
-                return jsonify({
-                    'name': best_match.name,
-                    'status': 'no_active_invitation',
-                    'message': 'No active invitation found',
-                    'distance': float(min_distance)
-                }), 200
-
-            # Handle status update if requested
-            new_status = request.form.get('status')
-            status_updated = False
-            status_message = "Face recognized"
-
-            if new_status and new_status in [status.value for status in GuestStatus]:
-                status_updated, status_message = best_match.update_invitation_status(
-                    current_invitation.id,
-                    GuestStatus(new_status)
-                )
-
-            return jsonify({
-                'name': best_match.name,
-                'current_invitation': {
-                    'id': current_invitation.id,
-                    'start_date': current_invitation.start_date.isoformat(),
-                    'end_date': current_invitation.end_date.isoformat(),
-                    'status': current_invitation.status.value
-                },
-                'status_message': status_message,
-                'status_updated': status_updated,
-                'distance': float(min_distance),
-                'history': [{
-                    'timestamp': h.timestamp.isoformat(),
-                    'invitation_id': h.invitation_id
-                } for h in best_match.history]
-            }), 200
-        else:
-            return jsonify({
-                'name': 'Unknown',
-                'distance': float(min_distance)
-            }), 200
-
+        logger.info("No face match found")
+        return jsonify({'status': 'no_match'}), 200
     except ValueError as e:
+        logger.exception(f"Face verification error: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
+        logger.exception(f"Server error in face verification: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.info(f"Removing temporary file {filepath}")
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+@api_bp.route('/search_plate', methods=['GET'])
+def search_plate():
+    plate = request.args.get('plate')
+    if not plate:
+        logger.error("No plate provided in request")
+        return jsonify({'error': 'No plate provided'}), 400
+
+    try:
+        plate = plate.replace(' ', '').upper()
+
+        residents = Resident.query.join(Car).filter(Car.license_plate == plate).all()
+        guests = Guest.query.filter_by(license_plate=plate).all()
+
+        logger.info(f"Found {len(residents)} residents and {len(guests)} guests with plate: {plate}")
+        return jsonify({
+            'residents': [{
+                'id': r.id,
+                'user_id': r.user_id,
+                'name': r.user.name,
+                'email': r.user.email,
+                'face_image': base64.b64encode(r.face_image).decode('utf-8') if r.face_image else None,
+                'has_face_data': r.face_data_ref is not None,
+                'homes': [{
+                    'section': h.home_section,
+                    'number': h.home_num,
+                    'apartment': h.home_appart
+                } for h in r.homes],
+                'cars': [{'license_plate': c.license_plate} for c in r.cars]
+            } for r in residents],
+            'guests': [{
+                'id': g.id,
+                'name': g.name,
+                'created_at': g.created_at.isoformat(),
+                'face_image': base64.b64encode(g.face_image).decode('utf-8') if g.face_image else None,
+                'license_plate': g.license_plate,
+                'current_invitation': {
+                    'status': g.get_current_invitation().status.value,  # Call method
+                    'created_at': g.get_current_invitation().created_at.isoformat()
+                } if g.get_current_invitation() else None,
+                'resident': {
+                    'name': g.resident.user.name,
+                    'email': g.resident.user.email
+                } if g.resident else None,
+                'invitations': [{'status': inv.status.value, 'created_at': inv.created_at.isoformat()} for inv in g.invitations]
+            } for g in guests]
+        }), 200
+    except Exception as e:
+        logger.exception(f"Error searching plate: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @api_bp.route('/health', methods=['GET'])
 def health_check():
@@ -661,100 +248,3 @@ def health_check():
         'facial_recognition': 'loaded' if facial_recognition() else 'not loaded',
         'license_plate_recognizer': 'loaded' if recognizer() else 'not loaded'
     })
-
-@api_bp.route('/validate_resident_face', methods=['POST'])
-def validate_resident_face():
-    try:
-        # Get image data
-        if 'image' in request.files:
-            image_data = request.files['image'].read()
-        else:
-            image_data = request.form.get('image_data')
-            if not image_data:
-                return jsonify({'error': 'Image is required'}), 400
-
-        # Generate embedding using the existing facial_recognition structure
-        test_embedding = facial_recognition().generate_embedding(image_data)
-        
-        # Find match among residents (assuming a Resident model exists)
-        from app.models.resident import Resident  # Import here to avoid circular imports
-        residents = Resident.query.all()
-        min_distance = float('inf')
-        best_match = None
-
-        for resident in residents:
-            stored_embedding = pickle.loads(resident.embedding)
-            distance = np.linalg.norm(test_embedding - stored_embedding)
-            if distance < min_distance:
-                min_distance = distance
-                best_match = resident
-
-        threshold = 0.8  # Same threshold as validate_face
-        if min_distance < threshold and best_match:
-            return jsonify({
-                'name': best_match.name,
-                'distance': float(min_distance)
-            }), 200
-        else:
-            return jsonify({
-                'name': 'Unknown',
-                'distance': float(min_distance)
-            }), 200
-
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
-
-@api_bp.route('/residents/search', methods=['GET'])
-def search_resident_by_plate():
-    plate = request.args.get('license_plate')
-    if not plate:
-        return jsonify({'error': 'License plate is required'}), 400
-
-    from app.models.resident import Resident  # Import here to avoid circular imports
-    resident = Resident.query.filter_by(license_plate=plate).first()
-    if resident:
-        return jsonify({
-            'status': 'success',
-            'resident': {
-                'id': resident.id,
-                'name': resident.name,
-                'license_plate': resident.license_plate
-            }
-        }), 200
-    else:
-        return jsonify({
-            'status': 'not_found',
-            'message': 'No resident found with this license plate'
-        }), 404
-
-@api_bp.route('/guests/search', methods=['GET'])
-def search_guest_by_plate():
-    plate = request.args.get('license_plate')
-    if not plate:
-        return jsonify({'error': 'License plate is required'}), 400
-
-    guest = Guest.query.filter_by(license_plate=plate).first()
-    if guest:
-        current_invitation = guest.get_current_invitation()
-        return jsonify({
-            'status': 'success',
-            'guest': {
-                'id': guest.id,
-                'name': guest.name,
-                'license_plate': guest.license_plate,
-                'current_invitation': {
-                    'id': current_invitation.id,
-                    'start_date': current_invitation.start_date.isoformat(),
-                    'end_date': current_invitation.end_date.isoformat(),
-                    'status': current_invitation.status.value
-                } if current_invitation else None
-            }
-        }), 200
-    else:
-        return jsonify({
-            'status': 'not_found',
-            'message': 'No guest found with this license plate'
-        }), 404
-

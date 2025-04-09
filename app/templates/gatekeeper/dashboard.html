@@ -2,84 +2,92 @@
 
 {% block title %}Gatekeeper Dashboard - Gate Keeper{% endblock %}
 
-{% block extra_head %}
-<style>
-    .video-feed, .uploaded-image {
-        border: 2px solid #4a5568;
-        border-radius: 8px;
-        max-width: 100%;
-    }
-    .output-container {
-        background-color: #2d3748;
-        padding: 1rem;
-        border-radius: 8px;
-        margin-top: 1rem;
-    }
-    .control-btn {
-        transition: all 0.3s ease;
-    }
-    .control-btn:hover {
-        transform: scale(1.05);
-    }
-    .status-text {
-        font-size: 1.1rem;
-        font-weight: 500;
-    }
-    .tab {
-        cursor: pointer;
-        padding: 0.5rem 1rem;
-        border-bottom: 2px solid transparent;
-    }
-    .tab-active {
-        border-bottom-color: #3182ce;
-        color: #3182ce;
-    }
-    .info-card {
-        background-color: #2d3748;
-        padding: 1rem;
-        border-radius: 8px;
-        color: #e2e8f0;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="min-h-screen bg-gray-900 p-8">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-white">Gatekeeper Dashboard</h1>
-        <button id="logoutBtn" class="text-sm text-gray-300 hover:text-white">Logout</button>
-    </div>
+<div class="min-h-screen bg-gray-900 p-6">
+    <h1 class="text-3xl font-bold mb-6 text-white">Gatekeeper Dashboard</h1>
 
+    <!-- Side-by-Side Forms -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 class="text-xl font-semibold text-white mb-4">Input Source</h2>
-            <div class="flex space-x-4 mb-4">
-                <button id="cameraTab" class="tab tab-active">Camera</button>
-                <button id="uploadTab" class="tab">Upload Image</button>
-            </div>
-            <div id="cameraSection">
-                <video id="videoFeed" class="video-feed" autoplay playsinline></video>
-                <div class="mt-4 flex space-x-4">
-                    <button id="startCamera" class="control-btn px-4 py-2 bg-primary-600 text-white rounded-md">Start Camera</button>
-                    <button id="stopCamera" class="control-btn px-4 py-2 bg-red-600 text-white rounded-md" disabled>Stop Camera</button>
+        <!-- Search by Face -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2 text-white">Search by Face</h2>
+            <form id="faceSearchForm" enctype="multipart/form-data" class="space-y-4">
+                <div class="flex flex-col items-center">
+                    <video id="faceVideo" class="w-full max-w-md rounded-lg" autoplay playsinline></video>
+                    <canvas id="faceCanvas" class="hidden"></canvas>
+                    <button type="button" id="captureFace" class="mt-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Capture Face
+                    </button>
                 </div>
-            </div>
-            <div id="uploadSection" class="hidden">
-                <input type="file" id="imageUpload" accept="image/*" class="text-white">
-                <img id="uploadedImage" class="uploaded-image hidden" alt="Uploaded Image">
-            </div>
+                <div class="flex items-center justify-center w-full">
+                    <label class="w-full flex flex-col items-center px-4 py-6 bg-gray-700 text-white rounded-lg shadow-lg tracking-wide uppercase border border-gray-600 cursor-pointer hover:bg-gray-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <span class="mt-2 text-sm">Select face image</span>
+                        <input type="file" name="image" accept="image/*" class="hidden" onchange="previewImage(this, 'facePreview')"/>
+                    </label>
+                </div>
+                <div id="facePreview" class="hidden">
+                    <img class="max-h-48 mx-auto rounded-lg" alt="Preview"/>
+                </div>
+                <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Search by Face</button>
+            </form>
         </div>
 
-        <div class="bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 class="text-xl font-semibold text-white mb-4">Recognition</h2>
-            <div class="flex space-x-4 mb-4">
-                <button id="recognizePlate" class="control-btn px-4 py-2 bg-green-600 text-white rounded-md" disabled>Recognize License Plate</button>
-                <button id="recognizeFace" class="control-btn px-4 py-2 bg-blue-600 text-white rounded-md" disabled>Recognize Face</button>
+        <!-- License Plate Recognition -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-2 text-white">Recognize License Plate</h2>
+            <form id="plateRecognitionForm" enctype="multipart/form-data" class="space-y-4">
+                <div class="flex flex-col items-center">
+                    <video id="plateVideo" class="w-full max-w-md rounded-lg" autoplay playsinline></video>
+                    <canvas id="plateCanvas" class="hidden"></canvas>
+                    <button type="button" id="capturePlate" class="mt-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Capture Plate
+                    </button>
+                </div>
+                <div class="flex items-center justify-center w-full">
+                    <label class="w-full flex flex-col items-center px-4 py-6 bg-gray-700 text-white rounded-lg shadow-lg tracking-wide uppercase border border-gray-600 cursor-pointer hover:bg-gray-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <span class="mt-2 text-sm">Select plate image</span>
+                        <input type="file" name="image" accept="image/*" class="hidden" onchange="previewImage(this, 'platePreview')"/>
+                    </label>
+                </div>
+                <div id="platePreview" class="hidden">
+                    <img class="max-h-48 mx-auto rounded-lg" alt="Preview"/>
+                </div>
+                <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Recognize Plate</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results Area -->
+    <div id="results" class="space-y-6"></div>
+
+    <!-- Face Verification Modal -->
+    <div id="verifyFaceModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-gray-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-white">Verify Face</h3>
+                <button onclick="closeModal('verifyFaceModal')" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
-            <div id="outputContainer" class="output-container">
-                <img id="outputImage" class="max-w-full h-auto hidden" alt="Processed Frame">
-                <div id="outputCard" class="mt-2"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">Uploaded Image</h4>
+                    <img id="uploadedFaceImage" class="w-full h-48 object-cover rounded-lg" alt="Uploaded"/>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">Matched Image</h4>
+                    <img id="matchedFaceImage" class="w-full h-48 object-cover rounded-lg" alt="Matched"/>
+                </div>
             </div>
+            <div id="matchDetails" class="mt-4"></div>
         </div>
     </div>
 </div>
@@ -87,363 +95,317 @@
 
 {% block extra_scripts %}
 <script>
-// Utility Functions
-function getCsrfToken() {
-    return document.cookie.split('; ')
-        .find(row => row.startsWith('csrf_access_token='))
-        ?.split('=')[1];
-}
+    // Camera Setup
+    const faceVideo = document.getElementById('faceVideo');
+    const faceCanvas = document.getElementById('faceCanvas');
+    const plateVideo = document.getElementById('plateVideo');
+    const plateCanvas = document.getElementById('plateCanvas');
 
-function handleError(error, redirect = true) {
-    console.error('Error:', error);
-    alert(error.message);
-    if (redirect && error.message.includes('401')) {
-        window.location.href = '/auth/login';
-    }
-}
+    // Start camera streams
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            faceVideo.srcObject = stream;
+            plateVideo.srcObject = stream.clone();
+        })
+        .catch(err => console.error("Error accessing camera:", err));
 
-// Elements
-const video = document.getElementById('videoFeed');
-const uploadInput = document.getElementById('imageUpload');
-const uploadedImage = document.getElementById('uploadedImage');
-const recognizePlateBtn = document.getElementById('recognizePlate');
-const recognizeFaceBtn = document.getElementById('recognizeFace');
-const outputImage = document.getElementById('outputImage');
-const outputCard = document.getElementById('outputCard');
-const cameraTab = document.getElementById('cameraTab');
-const uploadTab = document.getElementById('uploadTab');
-const cameraSection = document.getElementById('cameraSection');
-const uploadSection = document.getElementById('uploadSection');
-const startCameraBtn = document.getElementById('startCamera');
-const stopCameraBtn = document.getElementById('stopCamera');
-let stream = null;
-let inputType = 'camera';
-let selectedFile = null;
-const allowedExtensions = ['jpg', 'jpeg', 'png'];
-
-// Tab Switching
-cameraTab.addEventListener('click', () => {
-    inputType = 'camera';
-    cameraTab.classList.add('tab-active');
-    uploadTab.classList.remove('tab-active');
-    cameraSection.classList.remove('hidden');
-    uploadSection.classList.add('hidden');
-    recognizePlateBtn.disabled = !stream;
-    recognizeFaceBtn.disabled = !stream;
-});
-
-uploadTab.addEventListener('click', () => {
-    inputType = 'upload';
-    uploadTab.classList.add('tab-active');
-    cameraTab.classList.remove('tab-active');
-    uploadSection.classList.remove('hidden');
-    cameraSection.classList.add('hidden');
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        stream = null;
-        startCameraBtn.disabled = false;
-        stopCameraBtn.disabled = true;
-    }
-    recognizePlateBtn.disabled = !selectedFile;
-    recognizeFaceBtn.disabled = !selectedFile;
-});
-
-// Camera Handling
-startCameraBtn.addEventListener('click', async () => {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        startCameraBtn.disabled = true;
-        stopCameraBtn.disabled = false;
-        if (inputType === 'camera') {
-            recognizePlateBtn.disabled = false;
-            recognizeFaceBtn.disabled = false;
-        }
-    } catch (error) {
-        handleError(error, false);
-    }
-});
-
-stopCameraBtn.addEventListener('click', () => {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        stream = null;
-        startCameraBtn.disabled = false;
-        stopCameraBtn.disabled = true;
-        if (inputType === 'camera') {
-            recognizePlateBtn.disabled = true;
-            recognizeFaceBtn.disabled = true;
+    // Preview image from file upload
+    function previewImage(input, previewId) {
+        const preview = document.getElementById(previewId);
+        const file = input.files[0];
+        if (file) {
+            preview.classList.remove('hidden');
+            preview.querySelector('img').src = URL.createObjectURL(file);
         }
     }
-});
 
-// Upload Handling
-uploadInput.addEventListener('change', (event) => {
-    selectedFile = event.target.files[0];
-    if (selectedFile) {
-        const extension = selectedFile.name.split('.').pop().toLowerCase();
-        if (!allowedExtensions.includes(extension)) {
-            alert('Invalid file type. Please upload a JPG, JPEG, or PNG image.');
-            selectedFile = null;
-            uploadedImage.classList.add('hidden');
-            if (inputType === 'upload') {
-                recognizePlateBtn.disabled = true;
-                recognizeFaceBtn.disabled = true;
-            }
+    // Modal controls
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.remove('hidden');
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+    }
+
+    // Get CSRF token from cookies
+    function getCsrfToken() {
+        return document.cookie.split('; ')
+            .find(row => row.startsWith('csrf_access_token'))
+            ?.split('=')[1];
+    }
+
+    // Capture image from video
+    function captureImage(video, canvas) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg');
+    }
+
+    // Handle face capture
+    document.getElementById('captureFace').addEventListener('click', () => {
+        const imageData = captureImage(faceVideo, faceCanvas);
+        document.getElementById('facePreview').classList.remove('hidden');
+        document.getElementById('facePreview').querySelector('img').src = imageData;
+    });
+
+    // Handle plate capture
+    document.getElementById('capturePlate').addEventListener('click', () => {
+        const imageData = captureImage(plateVideo, plateCanvas);
+        document.getElementById('platePreview').classList.remove('hidden');
+        document.getElementById('platePreview').querySelector('img').src = imageData;
+    });
+
+    // Face Search
+    document.getElementById('faceSearchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        const fileInput = e.target.querySelector('input[type="file"]');
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = 'Searching...';
+
+        const previewImg = document.getElementById('facePreview').querySelector('img');
+        if (previewImg.src.startsWith('data:')) {
+            const dataUrl = previewImg.src;
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+            formData.append('image', blob, 'captured_face.jpg');
+        } else if (fileInput.files && fileInput.files[0]) {
+            formData.append('image', fileInput.files[0]);
+        } else {
+            resultsDiv.innerHTML = '<p class="text-center text-red-400">No image selected or captured</p>';
             return;
         }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            uploadedImage.src = e.target.result;
-            uploadedImage.classList.remove('hidden');
-        };
-        reader.readAsDataURL(selectedFile);
-        if (inputType === 'upload') {
-            recognizePlateBtn.disabled = false;
-            recognizeFaceBtn.disabled = false;
+
+        try {
+            const response = await fetch('/api/verify_face', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+                credentials: 'include',
+                body: formData
+            });
+            if (!response.ok) throw new Error(await response.text());
+            const data = await response.json();
+
+            if (data.status === 'success' && data.match) {
+                renderFaceMatch(data);
+            } else {
+                resultsDiv.innerHTML = '<p class="text-center text-red-400">No match found</p>';
+                openModal('verifyFaceModal');
+                document.getElementById('uploadedFaceImage').src = previewImg.src;
+                document.getElementById('matchedFaceImage').src = '';
+                document.getElementById('matchDetails').innerHTML = '<p class="text-red-200">No matching face in database</p>';
+            }
+        } catch (error) {
+            console.error('Face search error:', error);
+            resultsDiv.innerHTML = `<p class="text-center text-red-400">Error: ${error.message}</p>`;
         }
-    } else {
-        selectedFile = null;
-        uploadedImage.classList.add('hidden');
-        if (inputType === 'upload') {
-            recognizePlateBtn.disabled = true;
-            recognizeFaceBtn.disabled = true;
+    });
+
+    // License Plate Recognition
+    document.getElementById('plateRecognitionForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        const fileInput = e.target.querySelector('input[type="file"]');
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = 'Recognizing...';
+
+        const previewImg = document.getElementById('platePreview').querySelector('img');
+        if (previewImg.src.startsWith('data:')) {
+            const dataUrl = previewImg.src;
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+            formData.append('image', blob, 'captured_plate.jpg');
+        } else if (fileInput.files && fileInput.files[0]) {
+            formData.append('image', fileInput.files[0]);
+        } else {
+            resultsDiv.innerHTML = '<p class="text-center text-red-400">No image selected or captured</p>';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/recognize', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+                credentials: 'include',
+                body: formData
+            });
+            if (!response.ok) throw new Error(await response.text());
+            const data = await response.json();
+
+            if (data.status === 'success' && data.texts.length > 0) {
+                renderPlateMatch(data);
+            } else {
+                resultsDiv.innerHTML = '<p class="text-center text-red-400">No license plate detected</p>';
+            }
+        } catch (error) {
+            console.error('Plate recognition error:', error);
+            resultsDiv.innerHTML = `<p class="text-center text-red-400">Error: ${error.message}</p>`;
+        }
+    });
+
+    // Render Face Match
+    function renderFaceMatch(data) {
+        const resultsDiv = document.getElementById('results');
+        const match = data.match;
+        openModal('verifyFaceModal');
+        document.getElementById('uploadedFaceImage').src = document.getElementById('facePreview').querySelector('img').src;
+        document.getElementById('matchedFaceImage').src = `data:image/jpeg;base64,${match.face_image}`;
+
+        if (match.type === 'resident') {
+            resultsDiv.innerHTML = renderResidentCard(match);
+            document.getElementById('matchDetails').innerHTML = `
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <p class="text-sm text-gray-300"><span class="font-medium">Match Distance:</span> ${data.distance.toFixed(2)}</p>
+                </div>
+            `;
+        } else if (match.type === 'guest') {
+            resultsDiv.innerHTML = renderGuestCard(match);
+            document.getElementById('matchDetails').innerHTML = `
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <p class="text-sm text-gray-300"><span class="font-medium">Match Distance:</span> ${data.distance.toFixed(2)}</p>
+                    ${match.resident ? `
+                        <h4 class="text-sm font-medium text-gray-300 mt-4 mb-2">Resident Information</h4>
+                        <p class="text-sm text-gray-300"><span class="font-medium">Name:</span> ${match.resident.name}</p>
+                        <p class="text-sm text-gray-300"><span class="font-medium">Email:</span> ${match.resident.email}</p>
+                    ` : '<p class="text-sm text-gray-400">No associated resident</p>'}
+                    <h4 class="text-sm font-medium text-gray-300 mt-4 mb-2">Invitation History</h4>
+                    <div class="space-y-2">
+                        ${match.invitations.map(inv => `
+                            <p class="text-sm text-gray-300">${inv.status} - ${new Date(inv.created_at).toLocaleString()}</p>
+                        `).join('') || '<p class="text-sm text-gray-400">No invitations</p>'}
+                    </div>
+                </div>
+            `;
         }
     }
-});
 
-// Send Image to API Endpoint
-function sendToApi(endpoint, file, filename) {
-    const formData = new FormData();
-    formData.append('image', file, filename);
-    return fetch(endpoint, {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-        credentials: 'include',
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Unknown server error');
+    // Render License Plate Match
+    async function renderPlateMatch(data) {
+        const resultsDiv = document.getElementById('results');
+        const plate = data.texts;
+        resultsDiv.innerHTML = `
+            <div class="info-card mb-4 bg-gray-700 p-4 rounded-lg">
+                <h3 class="text-lg font-medium text-white">Recognized Plate</h3>
+                <p class="text-sm text-gray-300">${plate}</p>
+                <img src="data:image/jpeg;base64,${data.debug_image}" class="max-h-48 mt-2 rounded-lg" alt="OCR Debug Image"/>
+            </div>
+        `;
+
+        try {
+            const response = await fetch(`/api/search_plate?plate=${encodeURIComponent(plate)}`, {
+                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+                credentials: 'include'
             });
-        }
-        return response.json();
-    });
-}
+            if (!response.ok) throw new Error(await response.text());
+            const matches = await response.json();
 
-// Render Card
-function renderCard(data, type) {
-    let html = '';
-    if (type === 'resident' && data) {
-        html = `
-            <div class="info-card">
-                <h3 class="text-lg font-medium text-white">Resident: ${data.name}</h3>
-                <p>ID: ${data.id}</p>
-                <p>Email: ${data.email || 'N/A'}</p>
-                <p>Home: ${data.home?.address || 'N/A'}</p>
-                <div class="mt-2">
-                    <h4 class="text-sm font-medium text-gray-300">Cars</h4>
-                    ${data.cars?.length ? data.cars.map(car => `
-                        <p class="text-sm">${car.license_plate}</p>
-                    `).join('') : '<p class="text-sm text-gray-400">No cars registered</p>'}
+            if (matches.residents.length > 0) {
+                resultsDiv.innerHTML += matches.residents.map(renderResidentCard).join('');
+            }
+            if (matches.guests.length > 0) {
+                resultsDiv.innerHTML += matches.guests.map(renderGuestCard).join('');
+            }
+            if (!matches.residents.length && !matches.guests.length) {
+                resultsDiv.innerHTML += '<p class="text-center text-red-400">No matching residents or guests found</p>';
+            }
+        } catch (error) {
+            console.error('Plate search error:', error);
+            resultsDiv.innerHTML += `<p class="text-center text-red-400">Error searching plate: ${error.message}</p>`;
+        }
+    }
+
+    // Resident Card
+    function renderResidentCard(resident) {
+        return `
+            <div class="info-card bg-gray-700 p-4 rounded-lg">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-16 h-16 rounded-full overflow-hidden bg-gray-600">
+                            ${resident.face_image ? 
+                                `<img src="data:image/jpeg;base64,${resident.face_image}" class="w-full h-full object-cover" alt="${resident.name}"/>` :
+                                `<svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8c0 2.208-1.79 4-3.998 4-2.208 0-3.998-1.792-3.998-4s1.79-4 3.998-4c2.208 0 3.998 1.792 3.998 4z"/>
+                                </svg>`
+                            }
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-600 text-gray-200">ID: ${resident.id}</span>
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-600 text-gray-200">User ID: ${resident.user_id}</span>
+                            </div>
+                            <h3 class="text-lg font-medium text-white">${resident.name}</h3>
+                            <p class="text-sm text-gray-300">${resident.email}</p>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${resident.has_face_data ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}">
+                        ${resident.has_face_data ? 'Face Registered' : 'No Face Data'}
+                    </span>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-300 mb-1">Homes</h4>
+                        <div class="space-y-1">
+                            ${resident.homes?.map(home => `
+                                <div class="text-sm text-gray-400 bg-gray-800 rounded p-2">${home.section}-${home.number}-${home.apartment}</div>
+                            `).join('') || '<p class="text-sm text-gray-400">No homes registered</p>'}
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-300 mb-1">Cars</h4>
+                        <div class="space-y-1">
+                            ${resident.cars?.map(car => `
+                                <div class="flex justify-between items-center text-sm text-gray-400 bg-gray-800 rounded p-2">
+                                    <span>${car.license_plate}</span>
+                                </div>
+                            `).join('') || '<p class="text-sm text-gray-400">No cars registered</p>'}
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
-    } else if (type === 'guest' && data) {
-        html = `
-            <div class="info-card">
-                <h3 class="text-lg font-medium text-white">Guest: ${data.name}</h3>
-                <p>ID: ${data.id}</p>
-                <p>Added: ${new Date(data.created_at).toLocaleDateString()}</p>
-                <p>License Plate: ${data.license_plate || 'N/A'}</p>
-                <p>Invitation Status: ${data.current_invitation?.status || 'None'}</p>
-                ${data.current_invitation ? `
-                    <p>End Date: ${new Date(data.current_invitation.end_date).toLocaleDateString()}</p>
-                ` : ''}
-                ${data.resident ? `
-                    <div class="mt-2">
-                        <h4 class="text-sm font-medium text-gray-300">Linked Resident</h4>
-                        <p>Name: ${data.resident.name}</p>
-                        <p>Email: ${data.resident.email || 'N/A'}</p>
-                        <p>Home: ${data.resident.home?.address || 'N/A'}</p>
+    }
+
+    // Guest Card
+    function renderGuestCard(guest) {
+        return `
+            <div class="info-card bg-gray-700 p-4 rounded-lg">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-16 h-16 rounded-full overflow-hidden bg-gray-600">
+                            ${guest.face_image ? 
+                                `<img src="data:image/jpeg;base64,${guest.face_image}" class="w-full h-full object-cover" alt="${guest.name}"/>` :
+                                `<svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8c0 2.208-1.79 4-3.998 4-2.208 0-3.998-1.792-3.998-4s1.79-4 3.998-4c2.208 0 3.998 1.792 3.998 4z"/>
+                                </svg>`
+                            }
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-medium text-white">${guest.name}</h3>
+                            <p class="text-sm text-gray-400">ID: ${guest.id}</p>
+                            <p class="text-sm text-gray-400">Added: ${new Date(guest.created_at).toLocaleDateString()}</p>
+                        </div>
                     </div>
-                ` : ''}
+                    ${guest.current_invitation ? `
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full ${guest.current_invitation.status === 'ALLOWED' ? 'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
+                            ${guest.current_invitation.status}
+                        </span>
+                    ` : `
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-900 text-red-200">No Active Invitation</span>
+                    `}
+                </div>
+                <div class="bg-gray-800 rounded p-3 mb-3">
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">Car Information</h4>
+                    ${guest.license_plate ? `
+                        <div class="flex justify-between items-center bg-gray-700/50 rounded p-2">
+                            <p class="text-sm text-gray-300">${guest.license_plate}</p>
+                        </div>
+                    ` : '<p class="text-sm text-gray-400">No car registered</p>'}
+                </div>
             </div>
         `;
-    } else {
-        html = '<p class="status-text text-gray-300">No match found.</p>';
     }
-    outputCard.innerHTML = html;
-}
-
-// Search by License Plate
-async function searchByLicensePlate(plateText, debugImage) {
-    try {
-        const residentResponse = await fetch(`/api/residents/search?license_plate=${encodeURIComponent(plateText)}`, {
-            method: 'GET',
-            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-            credentials: 'include'
-        });
-        const residentData = await residentResponse.json();
-        if (residentData.status === 'success' && residentData.resident) {
-            outputImage.src = `${window.location.origin}${debugImage}`;
-            outputImage.classList.remove('hidden');
-            renderCard(residentData.resident, 'resident');
-            return;
-        }
-
-        const guestResponse = await fetch(`/api/guests/search?license_plate=${encodeURIComponent(plateText)}`, {
-            method: 'GET',
-            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-            credentials: 'include'
-        });
-        const guestData = await guestResponse.json();
-        if (guestData.status === 'success' && guestData.guest) {
-            outputImage.src = `${window.location.origin}${debugImage}`;
-            outputImage.classList.remove('hidden');
-            renderCard(guestData.guest, 'guest');
-        } else {
-            outputImage.src = `${window.location.origin}${debugImage}`;
-            outputImage.classList.remove('hidden');
-            renderCard(null, 'none');
-        }
-    } catch (error) {
-        outputImage.classList.add('hidden');
-        renderCard(null, 'none');
-        outputCard.innerHTML += `<p class="text-red-400">Search error: ${error.message}</p>`;
-    }
-}
-
-// Recognize License Plate
-recognizePlateBtn.addEventListener('click', () => {
-    let filePromise;
-    if (inputType === 'camera') {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-    } else if (inputType === 'upload' && selectedFile) {
-        filePromise = Promise.resolve(selectedFile);
-    } else {
-        renderCard(null, 'none');
-        return;
-    }
-
-    filePromise.then(file => {
-        sendToApi('/api/recognize', file, inputType === 'camera' ? 'plate.jpg' : file.name)
-            .then(data => {
-                if (data.status === 'success') {
-                    const plateText = data.texts.join(', ') || 'Not Recognized';
-                    searchByLicensePlate(plateText, data.debug_image);
-                } else {
-                    outputImage.classList.add('hidden');
-                    renderCard(null, 'none');
-                    outputCard.innerHTML += `<p class="text-red-400">Error: ${data.error}</p>`;
-                }
-            })
-            .catch(error => {
-                outputImage.classList.add('hidden');
-                renderCard(null, 'none');
-                outputCard.innerHTML += `<p class="text-red-400">Error: ${error.message}</p>`;
-            });
-    });
-});
-
-// Search by Face
-async function searchByFace() {  // Removed unused faceData parameter
-    try {
-        let filePromise;
-        if (inputType === 'camera') {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-        } else if (inputType === 'upload' && selectedFile) {
-            filePromise = Promise.resolve(selectedFile);
-        } else {
-            throw new Error('No image available');
-        }
-
-        const file = await filePromise;
-        const residentData = await sendToApi('/api/validate_resident_face', file, inputType === 'camera' ? 'face.jpg' : file.name);
-        if (residentData.name && residentData.name !== 'Unknown') {
-            const residentResponse = await fetch(`/api/residents/search?name=${encodeURIComponent(residentData.name)}`, {
-                method: 'GET',
-                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-                credentials: 'include'
-            });
-            const residentSearch = await residentResponse.json();
-            if (residentSearch.status === 'success' && residentSearch.resident) {
-                renderCard(residentSearch.resident, 'resident');
-                return;
-            }
-        }
-
-        const guestData = await sendToApi('/api/validate_face', file, inputType === 'camera' ? 'face.jpg' : file.name);
-        if (guestData.name && guestData.name !== 'Unknown') {
-            const guestResponse = await fetch(`/api/guests/search?name=${encodeURIComponent(guestData.name)}`, {
-                method: 'GET',
-                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-                credentials: 'include'
-            });
-            const guestSearch = await guestResponse.json();
-            if (guestSearch.status === 'success' && guestSearch.guest) {
-                renderCard(guestSearch.guest, 'guest');
-            } else {
-                renderCard(null, 'none');
-            }
-        } else {
-            renderCard(null, 'none');
-        }
-    } catch (error) {
-        renderCard(null, 'none');
-        outputCard.innerHTML += `<p class="text-red-400">Face search error: ${error.message}</p>`;
-    }
-}
-
-// Recognize Face
-recognizeFaceBtn.addEventListener('click', () => {
-    outputImage.classList.add('hidden'); // No debug image for face recognition
-    searchByFace().catch(error => {
-        renderCard(null, 'none');
-        outputCard.innerHTML += `<p class="text-red-400">Error: ${error.message}</p>`;
-    });
-});
-
-// Logout
-document.getElementById('logoutBtn').addEventListener('click', () => {
-    fetch('/auth/logout', {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-        credentials: 'include'
-    })
-    .then(response => response.ok ? window.location.href = '/' : Promise.reject(`HTTP error! status: ${response.status}`))
-    .catch(error => handleError(error, false));
-});
-
-// Initial Load
-document.addEventListener('DOMContentLoaded', () => {
-    fetch('/auth/check_token', { method: 'GET', credentials: 'include' })
-        .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! status: ${response.status}`))
-        .then(data => {
-            if (data.user.role !== 'GATEKEEPER') throw new Error('Unauthorized - Not a gatekeeper');
-        })
-        .catch(handleError);
-
-    fetch('/api/health', { method: 'GET', credentials: 'include' })
-        .then(response => response.ok ? response.json() : Promise.reject(`HTTP error! status: ${response.status}`))
-        .then(data => {
-            console.log('API Health:', data);
-            if (data.facial_recognition !== 'loaded' || data.license_plate_recognizer !== 'loaded') {
-                outputCard.innerHTML = '<p class="status-text text-yellow-400">Warning: Some services not loaded.</p>';
-            }
-        })
-        .catch(error => console.error('Health check failed:', error));
-});
 </script>
 {% endblock %}

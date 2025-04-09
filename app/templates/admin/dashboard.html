@@ -1711,8 +1711,8 @@ document.getElementById('recognizePlateForm').addEventListener('submit', functio
 
             // Set license plate text (join cleaned texts)
             const licensePlateInput = document.getElementById('licensePlateText');
-            licensePlateInput.value = data.texts.join(' ');  // Join array of cleaned texts
-            licensePlateInput.style.direction = 'rtl';  // Right-to-left for Arabic
+            licensePlateInput.value = data.texts;  // Join array of cleaned texts
+            // licensePlateInput.style.direction = 'rtl';  // Right-to-left for Arabic
 
             // Optional: Log raw results for debugging
             console.log('Raw OCR results:', data.raw_result);

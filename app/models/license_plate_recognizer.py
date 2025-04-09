@@ -26,8 +26,11 @@ class LicensePlateRecognizer:
             logger.error(f"Failed to initialize YOLO model: {str(e)}")
             raise
         
+        self._initialize_ocr()
+
+    def _initialize_ocr(self):
+        """Initialize or reinitialize PaddleOCR."""
         try:
-            # Explicitly disable GPU for PaddleOCR unless confirmed working
             self.ocr = PaddleOCR(use_angle_cls=True, lang='ar', use_gpu=False, 
                                det_db_box_thresh=0.7, det_db_unclip_ratio=1.7)
             logger.info("PaddleOCR initialized successfully")
@@ -38,20 +41,18 @@ class LicensePlateRecognizer:
     def save_debug_image(self, image, texts):
         filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
         debug_path = os.path.join(self.debug_dir, filename)
-        os.makedirs(self.debug_dir, exist_ok=True)  # Ensure directory exists
+        os.makedirs(self.debug_dir, exist_ok=True)
         success = cv2.imwrite(debug_path, image)
         if not success:
             logger.error(f"Failed to save debug image to {debug_path}")
         logger.info(f"Debug image saved: {debug_path} with texts: {texts}")
-        return f"/static/debug/{filename}"  # Return URL path
+        return f"/static/debug/{filename}"
     
     def crop_plate(self, img):
         try:
-            # Perform prediction on the image (img can be path or array)
             results = self.model.predict(source=img, conf=0.25)
             logger.info(f"YOLO prediction completed with {len(results)} results")
 
-            # Open the image as PIL if img is a path, else convert from array
             if isinstance(img, str):
                 image = Image.open(img)
             elif isinstance(img, np.ndarray):
@@ -64,10 +65,9 @@ class LicensePlateRecognizer:
                     max_width = -1
                     selected_box = None
 
-                    # Find the box with the maximum width
                     for box in result.boxes:
-                        res = box.xyxy[0]  # Get coordinates
-                        width = res[2].item() - res[0].item()  # x_max - x_min
+                        res = box.xyxy[0]
+                        width = res[2].item() - res[0].item()
 
                         if width > max_width:
                             max_width = width
@@ -91,72 +91,57 @@ class LicensePlateRecognizer:
         if len(results[0]) == 1:
             bbox, (text, prob) = results[0][0]
             return text, prob, bbox
-        # Multiple boxes: select the one with the highest bottom y-coordinate
-        lower_box = max(results[0], key=lambda x: max([p[1] for p in x[0]]))  # Max y of bbox
+        lower_box = max(results[0], key=lambda x: max([p[1] for p in x[0]]))
         bbox, (text, prob) = lower_box
         return text, prob, bbox
 
     def detect_text(self, cropped_image):
         try:
-            # Convert PIL Image to NumPy array
+            # Reinitialize OCR to clear state
+            self._initialize_ocr()  # Add this to reset PaddleOCR
+
             image_array = np.array(cropped_image)
-            
-            # Convert to BGR if the image has 3 channels (RGB)
             image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR) if len(image_array.shape) == 3 and image_array.shape[-1] == 3 else image_array
             logger.info(f"Processing image with shape: {image.shape}")
 
-            # Split the image horizontally into two halves
             height, width = image.shape[:2]
             mid_point = width // 2
-            left_half = image[:, :mid_point, :]  # Left half
-            right_half = image[:, mid_point:, :]  # Right half
+            left_half = image[:, :mid_point, :]
+            right_half = image[:, mid_point:, :]
 
-            # Perform OCR on each half and select the lower box
             detected_texts = []
             texts_only = []
             left_bbox = None
             right_bbox = None
 
-            # OCR on left half
-            try:
-                left_results = self.ocr.ocr(left_half, cls=True)
-                if left_results and left_results[0]:
-                    left_text, left_prob, left_bbox = self.get_lower_box(left_results)
-                    if left_text:
-                        detected_texts.append((left_text, left_prob))
-                        texts_only.append(left_text)
-                        logger.info(f"Left half text: {left_text}, prob: {left_prob}")
-            except RuntimeError as e:
-                logger.exception(f"PaddleOCR failed on left half: {str(e)}")
-                raise
+            left_results = self.ocr.ocr(left_half, cls=True)
+            if left_results and left_results[0]:
+                left_text, left_prob, left_bbox = self.get_lower_box(left_results)
+                if left_text:
+                    detected_texts.append((left_text, left_prob))
+                    texts_only.append(left_text)
+                    logger.info(f"Left half text: {left_text}, prob: {left_prob}")
 
-            # OCR on right half
-            try:
-                right_results = self.ocr.ocr(right_half, cls=True)
-                if right_results and right_results[0]:
-                    right_text, right_prob, right_bbox = self.get_lower_box(right_results)
-                    if right_text:
-                        detected_texts.append((right_text, right_prob))
-                        texts_only.append(right_text)
-                        logger.info(f"Right half text: {right_text}, prob: {right_prob}")
-            except RuntimeError as e:
-                logger.exception(f"PaddleOCR failed on right half: {str(e)}")
-                raise
+            right_results = self.ocr.ocr(right_half, cls=True)
+            if right_results and right_results[0]:
+                right_text, right_prob, right_bbox = self.get_lower_box(right_results)
+                if right_text:
+                    detected_texts.append((right_text, right_prob))
+                    texts_only.append(right_text)
+                    logger.info(f"Right half text: {right_text}, prob: {right_prob}")
 
-            # Combine the halves back for visualization
             combined_image = np.hstack((left_half, right_half))
 
-            # Draw bounding boxes on the combined image
             if left_bbox is not None:
                 left_bbox = np.array(left_bbox).astype(int)
                 cv2.polylines(combined_image, [left_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
             if right_bbox is not None:
                 right_bbox = np.array(right_bbox).astype(int)
-                right_bbox[:, 0] += mid_point  # Shift x-coordinates
+                right_bbox[:, 0] += mid_point
                 cv2.polylines(combined_image, [right_bbox], isClosed=True, color=(0, 255, 0), thickness=1)
 
             debug_url = self.save_debug_image(combined_image, detected_texts)
-            return [detected_texts, texts_only, debug_url]
+            return detected_texts, texts_only, debug_url  # Fix: Return tuple, not list
         
         except Exception as e:
             logger.exception(f"Error in detect_text: {str(e)}")
@@ -167,8 +152,8 @@ class LicensePlateRecognizer:
         tmp = []
         for t in texts:
             t = t.replace(' ', '')
-            if not (1569 <= ord(t[0]) <= 1610):  # Check if first char is Arabic
-                tmp.append(t[::-1])  # Reverse if not Arabic
+            if not (1569 <= ord(t[0]) <= 1610):
+                tmp.append(t[::-1])
             else:
                 tmp.append(t)
         return tmp
