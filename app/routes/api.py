@@ -4,6 +4,7 @@ from app.models.guest import Guest, GuestInvitation, GuestStatus
 from app.config import Config
 from werkzeug.utils import secure_filename
 import os
+import cv2
 import numpy as np 
 import pickle
 from datetime import datetime, timedelta  
@@ -11,6 +12,7 @@ from app.utils.helpers import allowed_file
 import logging
 from PIL import Image
 import base64
+
 
 # Create the Blueprint
 api_bp = Blueprint('api', __name__)
@@ -279,86 +281,246 @@ recognizer = lambda: current_app.recognizer
 #     logger.error(f"Invalid file type: {file.filename}")
 #     return jsonify({'error': 'Invalid file type'}), 400
 
+# @api_bp.route('/recognize', methods=['POST'])
+# def recognize_plate():
+#     logger.info("Received request to /api/recognize")
+    
+#     if 'image' not in request.files:
+#         logger.error("No image file provided in request")
+#         return jsonify({'error': 'No image file provided'}), 400
+
+#     file = request.files['image']
+#     if file.filename == '':
+#         logger.error("No selected file (empty filename)")
+#         return jsonify({'error': 'No selected file'}), 400
+
+#     if file and allowed_file(file.filename):
+#         try:
+#             # Save uploaded file
+#             filename = secure_filename(file.filename)
+#             filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+#             logger.info(f"Saving file to {filepath}")
+#             file.save(filepath)
+            
+#             # Verify file exists and has content
+#             if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+#                 logger.error(f"File {filepath} is missing or empty")
+#                 raise Exception("Saved file is missing or empty")
+
+#             # Check recognizer initialization
+#             if recognizer() is None:
+#                 logger.error("Recognizer is not initialized")
+#                 raise Exception("License plate recognizer not initialized")
+
+#             # Process image
+#             logger.info("Cropping plate")
+#             cropped_plate = recognizer().crop_plate(filepath)
+#             if cropped_plate is None:
+#                 logger.error("No license plate detected in image")
+#                 return jsonify({'error': 'No license plate detected'}), 400
+
+#             # Convert PIL Image to numpy array
+#             import numpy as np
+#             cropped_plate_np = np.array(cropped_plate)
+
+#             # Detect text
+#             logger.info("Detecting text")
+#             result = recognizer().detect_text(cropped_plate_np)  # Pass numpy array instead of PIL Image
+#             if not isinstance(result, list) or len(result) != 3:
+#                 logger.error(f"Invalid result format from detect_text: {result}")
+#                 raise Exception("Text detection returned invalid result")
+
+#             detected_texts, texts_only, debug_url = result
+#             cleaned_texts = recognizer().clean_text(texts_only)
+#             logger.info(f"OCR OUTPUT:{result} cleaned_texts:{cleaned_texts}")
+
+#             # Convert debug image to base64
+#             debug_image_path = os.path.join(current_app.root_path, debug_url.lstrip('/'))
+#             with open(debug_image_path, "rb") as image_file:
+#                 debug_image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+
+#             final = f"{cleaned_texts[1][::-1]}{cleaned_texts[0]}"
+#             logger.info(f"Recognition successful: {final}")
+#             return jsonify({
+#                 'status': 'success',
+#                 'texts': final,
+#                 'raw_result': detected_texts,
+#                 'debug_image': debug_image_base64,
+#                 'debug_url': debug_url
+#             })
+
+#         except Exception as e:
+#             logger.exception(f"Error processing image: {str(e)}")
+#             return jsonify({'error': str(e)}), 500
+
+#         finally:
+#             # Cleanup uploaded file
+#             if os.path.exists(filepath):
+#                 logger.info(f"Removing temporary file {filepath}")
+#                 os.remove(filepath)
+
+#     logger.error(f"Invalid file type: {file.filename}")
+#     return jsonify({'error': 'Invalid file type'}), 400
+
+# @api_bp.route('/recognize', methods=['POST'])
+# def recognize_plate():
+#     logger.info("Received request to /api/recognize")
+    
+#     if 'image' not in request.files:
+#         logger.error("No image file provided in request")
+#         return jsonify({'error': 'No image file provided'}), 400
+
+#     file = request.files['image']
+#     if file.filename == '' or not allowed_file(file.filename):
+#         logger.error("Invalid or no file selected")
+#         return jsonify({'error': 'Invalid or no file selected'}), 400
+
+#     try:
+#         filename = secure_filename(file.filename)
+#         filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+#         logger.info(f"Saving file to {filepath}")
+#         file.save(filepath)
+        
+#         cropped_plate = recognizer().crop_plate(filepath)
+#         if cropped_plate is None:
+#             logger.error("No license plate detected in image")
+#             return jsonify({'error': 'No license plate detected'}), 400
+
+#         cropped_plate_np = np.array(cropped_plate)
+#         result = recognizer().detect_text(cropped_plate_np)
+#         if not isinstance(result, list) or len(result) != 3:
+#             logger.error(f"Invalid result format from detect_text: {result}")
+#             raise Exception("Text detection returned invalid result")
+
+#         detected_texts, texts_only, debug_url = result
+#         cleaned_texts = recognizer().clean_text(texts_only)
+#         final_plate = f"{cleaned_texts[1][::-1]}{cleaned_texts[0]}" if len(cleaned_texts) >= 2 else cleaned_texts[0]
+#         logger.info(f"Recognition successful: {final_plate}")
+
+#         debug_image_path = os.path.join(current_app.root_path, debug_url.lstrip('/'))
+#         with open(debug_image_path, "rb") as image_file:
+#             debug_image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+
+#         # Check residents
+#         from app.models.user import Car
+#         car = Car.query.filter_by(license_plate=final_plate).first()
+#         if car:
+#             resident = car.resident
+#             return jsonify({
+#                 'status': 'success',
+#                 'type': 'resident',
+#                 'texts': final_plate,
+#                 'debug_image': debug_image_base64,
+#                 'debug_url': debug_url,
+#                 'resident': {
+#                     'id': resident.id,
+#                     'name': resident.user.name,
+#                     'email': resident.user.email
+#                 }
+#             }), 200
+
+#         # Check guests
+#         guest = Guest.query.filter_by(license_plate=final_plate).first()
+#         if guest:
+#             current_invitation = guest.get_current_invitation()
+#             return jsonify({
+#                 'status': 'success',
+#                 'type': 'guest',
+#                 'texts': final_plate,
+#                 'debug_image': debug_image_base64,
+#                 'debug_url': debug_url,
+#                 'guest': {
+#                     'id': guest.id,
+#                     'name': guest.name,
+#                     'resident_id': guest.resident_id,
+#                     'license_plate': guest.license_plate,
+#                     'current_invitation': current_invitation.to_dict() if current_invitation else None
+#                 }
+#             }), 200
+
+#         return jsonify({
+#             'status': 'success',
+#             'type': 'unknown',
+#             'texts': final_plate,
+#             'debug_image': debug_image_base64,
+#             'debug_url': debug_url
+#         }), 200
+
+#     except Exception as e:
+#         logger.exception(f"Error processing image: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
+
+#     finally:
+#         if os.path.exists(filepath):
+#             logger.info(f"Removing temporary file {filepath}")
+#             os.remove(filepath)
+
 @api_bp.route('/recognize', methods=['POST'])
 def recognize_plate():
-    logger.info("Received request to /api/recognize")
-    
+    logger.info("Received POST request to /api/recognize")
+    logger.info(f"Important Headers: {dict(request.headers)}")
+
     if 'image' not in request.files:
         logger.error("No image file provided in request")
         return jsonify({'error': 'No image file provided'}), 400
 
     file = request.files['image']
-    if file.filename == '':
-        logger.error("No selected file (empty filename)")
-        return jsonify({'error': 'No selected file'}), 400
+    if file.filename == '' or not allowed_file(file.filename):
+        logger.error(f"Invalid file: {file.filename}")
+        return jsonify({'error': 'Invalid file'}), 400
 
-    if file and allowed_file(file.filename):
-        try:
-            # Save uploaded file
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
-            logger.info(f"Saving file to {filepath}")
-            file.save(filepath)
-            
-            # Verify file exists and has content
-            if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-                logger.error(f"File {filepath} is missing or empty")
-                raise Exception("Saved file is missing or empty")
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+    os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
+    file.save(filepath)
+    logger.info(f"Saving file to {filepath}")
 
-            # Check recognizer initialization
-            if recognizer() is None:
-                logger.error("Recognizer is not initialized")
-                raise Exception("License plate recognizer not initialized")
+    try:
+        # Crop the plate using YOLO
+        cropped_image = recognizer().crop_plate(filepath)
+        if cropped_image is None:
+            logger.info("No plate detected in image")
+            return jsonify({'error': 'No plate detected'}), 400
 
-            # Process image
-            logger.info("Cropping plate")
-            cropped_plate = recognizer().crop_plate(filepath)
-            if cropped_plate is None:
-                logger.error("No license plate detected in image")
-                return jsonify({'error': 'No license plate detected'}), 400
+        # Detect text from cropped plate
+        detected_texts, texts_only, debug_url = recognizer().detect_text(cropped_image)
+        logger.info(f"detection: {detected_texts}")
+        logger.info(f"texts_only: {texts_only}")
+        logger.info(f"dbg_url: {debug_url}")
+        if not texts_only:
+            logger.info("No text detected in cropped plate")
+            return jsonify({'error': 'No text detected'}), 400
 
-            # Convert PIL Image to numpy array
-            import numpy as np
-            cropped_plate_np = np.array(cropped_plate)
+        # Clean the detected texts
+        cleaned_texts = recognizer().clean_text(texts_only)
+        logger.info(f"Cleaned texts: {cleaned_texts}")
 
-            # Detect text
-            logger.info("Detecting text")
-            result = recognizer().detect_text(cropped_plate_np)  # Pass numpy array instead of PIL Image
-            if not isinstance(result, list) or len(result) != 3:
-                logger.error(f"Invalid result format from detect_text: {result}")
-                raise Exception("Text detection returned invalid result")
+        # Load debug image and convert to base64
+        debug_img = cv2.imread(os.path.join(app.config['DEBUG_DIR'], debug_url.split('/')[-1]))
+        if debug_img is None:
+            logger.error(f"Failed to load debug image: {debug_url}")
+            raise ValueError("Failed to load debug image")
+        _, buffer = cv2.imencode('.jpg', debug_img)
+        debug_image_base64 = base64.b64encode(buffer).decode('utf-8')
 
-            detected_texts, texts_only, debug_url = result
-            cleaned_texts = recognizer().clean_text(texts_only)
-            logger.info(f"OCR OUTPUT:{result} cleaned_texts:{cleaned_texts}")
+        logger.info(f"Plate recognition successful: {cleaned_texts}")
+        return jsonify({
+            'status': 'success',
+            'texts': cleaned_texts,  # Return cleaned texts
+            'debug_image': debug_image_base64,
+            'raw_result': detected_texts  # Full text with probabilities
+        }), 200
 
-            # Convert debug image to base64
-            debug_image_path = os.path.join(current_app.root_path, debug_url.lstrip('/'))
-            with open(debug_image_path, "rb") as image_file:
-                debug_image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
-
-            final = f"{cleaned_texts[1][::-1]}{cleaned_texts[0]}"
-            logger.info(f"Recognition successful: {final}")
-            return jsonify({
-                'status': 'success',
-                'texts': final,
-                'raw_result': detected_texts,
-                'debug_image': debug_image_base64,
-                'debug_url': debug_url
-            })
-
-        except Exception as e:
-            logger.exception(f"Error processing image: {str(e)}")
-            return jsonify({'error': str(e)}), 500
-
-        finally:
-            # Cleanup uploaded file
-            if os.path.exists(filepath):
-                logger.info(f"Removing temporary file {filepath}")
-                os.remove(filepath)
-
-    logger.error(f"Invalid file type: {file.filename}")
-    return jsonify({'error': 'Invalid file type'}), 400
+    except RuntimeError as e:
+        logger.exception(f"PaddleOCR RuntimeError: {str(e)}")
+        return jsonify({'error': f"PaddleOCR error: {str(e)}"}), 500
+    except Exception as e:
+        logger.exception(f"Error processing image: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.info(f"Removing temporary file {filepath}")
 
 @api_bp.route('/add_guest', methods=['POST'])
 def add_guest():

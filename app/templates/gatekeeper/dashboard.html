@@ -34,6 +34,12 @@
         border-bottom-color: #3182ce;
         color: #3182ce;
     }
+    .info-card {
+        background-color: #2d3748;
+        padding: 1rem;
+        border-radius: 8px;
+        color: #e2e8f0;
+    }
 </style>
 {% endblock %}
 
@@ -45,7 +51,6 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Camera Feed / Upload -->
         <div class="bg-gray-800 rounded-lg shadow-lg p-6">
             <h2 class="text-xl font-semibold text-white mb-4">Input Source</h2>
             <div class="flex space-x-4 mb-4">
@@ -65,7 +70,6 @@
             </div>
         </div>
 
-        <!-- Recognition Controls -->
         <div class="bg-gray-800 rounded-lg shadow-lg p-6">
             <h2 class="text-xl font-semibold text-white mb-4">Recognition</h2>
             <div class="flex space-x-4 mb-4">
@@ -74,7 +78,7 @@
             </div>
             <div id="outputContainer" class="output-container">
                 <img id="outputImage" class="max-w-full h-auto hidden" alt="Processed Frame">
-                <p id="outputText" class="status-text text-gray-300 mt-2">Select an input and recognition type.</p>
+                <div id="outputCard" class="mt-2"></div>
             </div>
         </div>
     </div>
@@ -105,7 +109,7 @@ const uploadedImage = document.getElementById('uploadedImage');
 const recognizePlateBtn = document.getElementById('recognizePlate');
 const recognizeFaceBtn = document.getElementById('recognizeFace');
 const outputImage = document.getElementById('outputImage');
-const outputText = document.getElementById('outputText');
+const outputCard = document.getElementById('outputCard');
 const cameraTab = document.getElementById('cameraTab');
 const uploadTab = document.getElementById('uploadTab');
 const cameraSection = document.getElementById('cameraSection');
@@ -113,9 +117,9 @@ const uploadSection = document.getElementById('uploadSection');
 const startCameraBtn = document.getElementById('startCamera');
 const stopCameraBtn = document.getElementById('stopCamera');
 let stream = null;
-let inputType = 'camera';  // Default to camera
-let selectedFile = null;   // Store the uploaded file
-const allowedExtensions = ['jpg', 'jpeg', 'png']; // Allowed file extensions
+let inputType = 'camera';
+let selectedFile = null;
+const allowedExtensions = ['jpg', 'jpeg', 'png'];
 
 // Tab Switching
 cameraTab.addEventListener('click', () => {
@@ -212,10 +216,8 @@ uploadInput.addEventListener('change', (event) => {
 
 // Send Image to API Endpoint
 function sendToApi(endpoint, file, filename) {
-    console.log(`Sending file to ${endpoint}:`, filename);
     const formData = new FormData();
     formData.append('image', file, filename);
-
     return fetch(endpoint, {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': getCsrfToken() },
@@ -223,7 +225,6 @@ function sendToApi(endpoint, file, filename) {
         body: formData
     })
     .then(response => {
-        console.log('Response status:', response.status);
         if (!response.ok) {
             return response.json().then(data => {
                 throw new Error(data.error || 'Unknown server error');
@@ -233,8 +234,53 @@ function sendToApi(endpoint, file, filename) {
     });
 }
 
-// Search Residents and Guests by License Plate
-async function searchByLicensePlate(plateText) {
+// Render Card
+function renderCard(data, type) {
+    let html = '';
+    if (type === 'resident' && data) {
+        html = `
+            <div class="info-card">
+                <h3 class="text-lg font-medium text-white">Resident: ${data.name}</h3>
+                <p>ID: ${data.id}</p>
+                <p>Email: ${data.email || 'N/A'}</p>
+                <p>Home: ${data.home?.address || 'N/A'}</p>
+                <div class="mt-2">
+                    <h4 class="text-sm font-medium text-gray-300">Cars</h4>
+                    ${data.cars?.length ? data.cars.map(car => `
+                        <p class="text-sm">${car.license_plate}</p>
+                    `).join('') : '<p class="text-sm text-gray-400">No cars registered</p>'}
+                </div>
+            </div>
+        `;
+    } else if (type === 'guest' && data) {
+        html = `
+            <div class="info-card">
+                <h3 class="text-lg font-medium text-white">Guest: ${data.name}</h3>
+                <p>ID: ${data.id}</p>
+                <p>Added: ${new Date(data.created_at).toLocaleDateString()}</p>
+                <p>License Plate: ${data.license_plate || 'N/A'}</p>
+                <p>Invitation Status: ${data.current_invitation?.status || 'None'}</p>
+                ${data.current_invitation ? `
+                    <p>End Date: ${new Date(data.current_invitation.end_date).toLocaleDateString()}</p>
+                ` : ''}
+                ${data.resident ? `
+                    <div class="mt-2">
+                        <h4 class="text-sm font-medium text-gray-300">Linked Resident</h4>
+                        <p>Name: ${data.resident.name}</p>
+                        <p>Email: ${data.resident.email || 'N/A'}</p>
+                        <p>Home: ${data.resident.home?.address || 'N/A'}</p>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    } else {
+        html = '<p class="status-text text-gray-300">No match found.</p>';
+    }
+    outputCard.innerHTML = html;
+}
+
+// Search by License Plate
+async function searchByLicensePlate(plateText, debugImage) {
     try {
         const residentResponse = await fetch(`/api/residents/search?license_plate=${encodeURIComponent(plateText)}`, {
             method: 'GET',
@@ -242,6 +288,12 @@ async function searchByLicensePlate(plateText) {
             credentials: 'include'
         });
         const residentData = await residentResponse.json();
+        if (residentData.status === 'success' && residentData.resident) {
+            outputImage.src = `${window.location.origin}${debugImage}`;
+            outputImage.classList.remove('hidden');
+            renderCard(residentData.resident, 'resident');
+            return;
+        }
 
         const guestResponse = await fetch(`/api/guests/search?license_plate=${encodeURIComponent(plateText)}`, {
             method: 'GET',
@@ -249,16 +301,19 @@ async function searchByLicensePlate(plateText) {
             credentials: 'include'
         });
         const guestData = await guestResponse.json();
-
-        if (residentData.status === 'success' && residentData.resident) {
-            return `Resident: ${residentData.resident.name} (Plate: ${residentData.resident.license_plate})`;
-        } else if (guestData.status === 'success' && guestData.guest) {
-            return `Guest: ${guestData.guest.name} (Plate: ${guestData.guest.license_plate}, Invitation: ${guestData.guest.current_invitation?.status || 'None'})`;
+        if (guestData.status === 'success' && guestData.guest) {
+            outputImage.src = `${window.location.origin}${debugImage}`;
+            outputImage.classList.remove('hidden');
+            renderCard(guestData.guest, 'guest');
         } else {
-            return `No resident or guest found for plate: ${plateText}`;
+            outputImage.src = `${window.location.origin}${debugImage}`;
+            outputImage.classList.remove('hidden');
+            renderCard(null, 'none');
         }
     } catch (error) {
-        return `Search error: ${error.message}`;
+        outputImage.classList.add('hidden');
+        renderCard(null, 'none');
+        outputCard.innerHTML += `<p class="text-red-400">Search error: ${error.message}</p>`;
     }
 }
 
@@ -274,7 +329,7 @@ recognizePlateBtn.addEventListener('click', () => {
     } else if (inputType === 'upload' && selectedFile) {
         filePromise = Promise.resolve(selectedFile);
     } else {
-        outputText.textContent = 'No image selected or captured.';
+        renderCard(null, 'none');
         return;
     }
 
@@ -282,104 +337,81 @@ recognizePlateBtn.addEventListener('click', () => {
         sendToApi('/api/recognize', file, inputType === 'camera' ? 'plate.jpg' : file.name)
             .then(data => {
                 if (data.status === 'success') {
-                    console.log(data);
-                    // outputImage.src = `data:image/jpeg;base64,${data.debug_image}`;
-                    outputImage.src = `${window.location.origin}${data.debug_image}`;
-                    outputImage.classList.remove('hidden');
                     const plateText = data.texts.join(', ') || 'Not Recognized';
-                    console.log(data);
-                    outputText.textContent = `License Plate: ${plateText}`;
-                    // searchByLicensePlate(plateText).then(searchResult => {
-                    //     outputText.textContent += `\n${searchResult}`;
-                    // });
+                    searchByLicensePlate(plateText, data.debug_image);
                 } else {
                     outputImage.classList.add('hidden');
-                    outputText.textContent = `Error: ${data.error}`;
+                    renderCard(null, 'none');
+                    outputCard.innerHTML += `<p class="text-red-400">Error: ${data.error}</p>`;
                 }
             })
             .catch(error => {
                 outputImage.classList.add('hidden');
-                outputText.textContent = `Error: ${error.message}`;
+                renderCard(null, 'none');
+                outputCard.innerHTML += `<p class="text-red-400">Error: ${error.message}</p>`;
             });
     });
 });
 
-// Search Residents and Guests by Face
-async function searchByFace(faceData) {
-    if (faceData.name !== 'Unknown') {
-        let result = `Recognized: ${faceData.name} (Distance: ${faceData.distance})`;
-        if (faceData.current_invitation) {
-            result += `\nInvitation: ${faceData.current_invitation.status} until ${faceData.current_invitation.end_date}`;
-            return result;
-        } else {
-            return result + `\nResident: No invitation data (assuming resident)`;
-        }
-    }
-
-    let filePromise;
-    if (inputType === 'camera') {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-    } else if (inputType === 'upload' && selectedFile) {
-        filePromise = Promise.resolve(selectedFile);
-    } else {
-        throw new Error('No image available');
-    }
-
-    const file = await filePromise;
-    const formData = new FormData();
-    formData.append('image', file, inputType === 'camera' ? 'face.jpg' : file.name);
-
+// Search by Face
+async function searchByFace() {  // Removed unused faceData parameter
     try {
-        const residentResponse = await fetch('/api/validate_resident_face', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-            credentials: 'include',
-            body: formData
-        });
-        const residentData = await residentResponse.json();
-
-        if (residentData.name && residentData.name !== 'Unknown') {
-            return `Resident: ${residentData.name} (Distance: ${residentData.distance})`;
+        let filePromise;
+        if (inputType === 'camera') {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+        } else if (inputType === 'upload' && selectedFile) {
+            filePromise = Promise.resolve(selectedFile);
         } else {
-            return `No resident or guest match found (Distance: ${faceData.distance})`;
+            throw new Error('No image available');
+        }
+
+        const file = await filePromise;
+        const residentData = await sendToApi('/api/validate_resident_face', file, inputType === 'camera' ? 'face.jpg' : file.name);
+        if (residentData.name && residentData.name !== 'Unknown') {
+            const residentResponse = await fetch(`/api/residents/search?name=${encodeURIComponent(residentData.name)}`, {
+                method: 'GET',
+                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+                credentials: 'include'
+            });
+            const residentSearch = await residentResponse.json();
+            if (residentSearch.status === 'success' && residentSearch.resident) {
+                renderCard(residentSearch.resident, 'resident');
+                return;
+            }
+        }
+
+        const guestData = await sendToApi('/api/validate_face', file, inputType === 'camera' ? 'face.jpg' : file.name);
+        if (guestData.name && guestData.name !== 'Unknown') {
+            const guestResponse = await fetch(`/api/guests/search?name=${encodeURIComponent(guestData.name)}`, {
+                method: 'GET',
+                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
+                credentials: 'include'
+            });
+            const guestSearch = await guestResponse.json();
+            if (guestSearch.status === 'success' && guestSearch.guest) {
+                renderCard(guestSearch.guest, 'guest');
+            } else {
+                renderCard(null, 'none');
+            }
+        } else {
+            renderCard(null, 'none');
         }
     } catch (error) {
-        return `Face search error: ${error.message}`;
+        renderCard(null, 'none');
+        outputCard.innerHTML += `<p class="text-red-400">Face search error: ${error.message}</p>`;
     }
 }
 
 // Recognize Face
 recognizeFaceBtn.addEventListener('click', () => {
-    let filePromise;
-    if (inputType === 'camera') {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        filePromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
-    } else if (inputType === 'upload' && selectedFile) {
-        filePromise = Promise.resolve(selectedFile);
-    } else {
-        outputText.textContent = 'No image selected or captured.';
-        return;
-    }
-
-    filePromise.then(file => {
-        sendToApi('/api/validate_face', file, inputType === 'camera' ? 'face.jpg' : file.name)
-            .then(data => {
-                outputImage.classList.add('hidden');
-                searchByFace(data).then(searchResult => {
-                    outputText.textContent = searchResult;
-                });
-            })
-            .catch(error => {
-                outputText.textContent = `Error: ${error.message}`;
-                outputImage.classList.add('hidden');
-            });
+    outputImage.classList.add('hidden'); // No debug image for face recognition
+    searchByFace().catch(error => {
+        renderCard(null, 'none');
+        outputCard.innerHTML += `<p class="text-red-400">Error: ${error.message}</p>`;
     });
 });
 
@@ -408,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             console.log('API Health:', data);
             if (data.facial_recognition !== 'loaded' || data.license_plate_recognizer !== 'loaded') {
-                outputText.textContent = 'Warning: Some services not loaded.';
+                outputCard.innerHTML = '<p class="status-text text-yellow-400">Warning: Some services not loaded.</p>';
             }
         })
         .catch(error => console.error('Health check failed:', error));

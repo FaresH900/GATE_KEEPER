@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pickle
 import numpy as np
 from enum import Enum
-import base64  # Add this import for image encoding
+import base64
 
 class GuestStatus(Enum):
     PENDING = 'PENDING'
@@ -36,6 +36,7 @@ class Guest(db.Model):
     embedding = db.Column(db.LargeBinary, nullable=False)
     face_image = db.Column(db.LargeBinary, nullable=False)
     resident_id = db.Column(db.Integer, db.ForeignKey('residents.id', ondelete='CASCADE'), nullable=False)
+    license_plate = db.Column(db.String(50), nullable=True)  # New field
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
     # Relationships
@@ -49,6 +50,7 @@ class Guest(db.Model):
             'id': self.id,
             'name': self.name,
             'face_image': base64.b64encode(self.face_image).decode('utf-8') if self.face_image else None,
+            'license_plate': self.license_plate,  # Include new field
             'created_at': self.created_at.isoformat(),
             'resident': self.resident.to_dict() if self.resident else None,
             'current_invitation': current_invitation.to_dict() if current_invitation else None,
@@ -57,12 +59,8 @@ class Guest(db.Model):
         }
 
     @staticmethod
-    def add_guest(name, embedding, face_image, resident_id, invitation_end_date=None):
-        """
-        Add a new guest with face embedding and image
-        """
+    def add_guest(name, embedding, face_image, resident_id, license_plate=None, invitation_end_date=None):  # Updated
         try:
-            # Check for existing face matches
             existing_guests = Guest.query.all()
             
             for guest in existing_guests:
@@ -70,7 +68,6 @@ class Guest(db.Model):
                 distance = np.linalg.norm(embedding - stored_embedding)
                 
                 if distance < 0.8:  # Threshold for face matching
-                    # Create new invitation for existing guest if needed
                     if invitation_end_date:
                         new_invitation = GuestInvitation(
                             guest_id=guest.id,
@@ -91,17 +88,16 @@ class Guest(db.Model):
                         'guest': guest
                     }
 
-            # Create new guest with face image
             new_guest = Guest(
                 name=name,
                 embedding=pickle.dumps(embedding),
                 face_image=face_image,
-                resident_id=resident_id
+                resident_id=resident_id,
+                license_plate=license_plate  # Set new field
             )
             db.session.add(new_guest)
             db.session.flush()
 
-            # Create invitation if end date provided
             if invitation_end_date:
                 new_invitation = GuestInvitation(
                     guest_id=new_guest.id,
@@ -122,7 +118,6 @@ class Guest(db.Model):
             raise Exception(f"Error adding guest: {str(e)}")
 
     def get_current_invitation(self):
-        """Get the current valid invitation if any"""
         now = datetime.now()
         return GuestInvitation.query.filter(
             GuestInvitation.guest_id == self.id,
@@ -131,7 +126,6 @@ class Guest(db.Model):
         ).order_by(GuestInvitation.created_at.desc()).first()
 
     def update_invitation_status(self, invitation_id, new_status):
-        """Update invitation status and create history entry"""
         invitation = GuestInvitation.query.get(invitation_id)
         if not invitation or invitation.guest_id != self.id:
             return False, "Invalid invitation"

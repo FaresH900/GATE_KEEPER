@@ -56,6 +56,7 @@ find "$START_DIR" -type f \
   -not -name "*.mp4" \
   -not -name "*.wav" \
   -not -name "*.avi" \
+  -not -name "*.html" \
   | sort | while read file; do
     display_file_content "$file"
 done

@@ -17,7 +17,7 @@
       pkgs.mesa
       pkgs.glibc
       pkgs.libglibutil
-      pkgs.glib.out
+      pkgs.glib
 
       #mysql
       pkgs.python311Packages.sqlalchemy
@@ -25,8 +25,27 @@
       pkgs.pkg-config
       pkgs.libmysqlclient
 
-  ];
+      pkgs.coreutils
+      pkgs.gcc
+      pkgs.gnumake
+      pkgs.swig
+      
+      #MuPDF
+      pkgs.leptonica
+      pkgs.tesseract
+      pkgs.libjpeg
+      pkgs.zlib
+      pkgs.freetype
+      pkgs.openjpeg
 
+  ];
+  env={
+    # Ensure CFLAGS and LDFLAGS include system paths
+    CFLAGS = "-I/usr/include";
+    LDFLAGS = "-L/usr/lib -L/usr/lib32";
+    # Point pkg-config to the right paths
+    PKG_CONFIG_PATH = "/usr/lib/pkgconfig:/usr/share/pkgconfig";
+  };
   services.mysql = {
     enable = true;
     package = pkgs.mariadb;

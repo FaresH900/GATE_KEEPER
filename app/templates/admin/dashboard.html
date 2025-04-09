@@ -586,6 +586,41 @@
             </div>
         </div>
     </div>
+
+    <!-- Manage Guest Car Modal -->
+    <div id="manageGuestCarModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-gray-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="manageGuestCarModalTitle" class="text-lg font-medium text-white">Manage Guest Car</h3>
+                <button onclick="closeModal('manageGuestCarModal')" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="manageGuestCarForm" class="mt-4">
+                <input type="hidden" name="guest_id">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Guest Name</label>
+                        <input type="text" id="guestCarName" disabled class="w-full rounded-md bg-gray-700 border-transparent text-white" placeholder="Guest Name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">License Plate</label>
+                        <input type="text" name="license_plate" required dir="rtl" class="w-full rounded-md bg-gray-700 border-transparent focus:border-primary-500 text-white text-right" placeholder="Enter license plate">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('manageGuestCarModal')" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors duration-300">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors duration-300">
+                        Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
     <div id="flashMessages" class="space-y-2"></div>
 </div>
 {% endblock %}
@@ -633,6 +668,8 @@ function confirmLicensePlate() {
     const ownerType = document.querySelector('select[name="ownerType"]').value;
     const ownerId = document.querySelector('input[name="ownerId"]').value;
     const licensePlate = document.getElementById('licensePlateText').value;
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
     const endpoint = ownerType === 'resident' 
         ? '/admin/add_car' 
@@ -650,17 +687,30 @@ function confirmLicensePlate() {
             license_plate: licensePlate
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to save license plate');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         closeModal('addCarModal');
-        // You might want to add a success notification here
-        alert('License plate added successfully');
-        // Optionally refresh the page or update the UI
-        location.reload();
+        showFlashMessage('License plate added successfully', 'success');
+        // Refresh appropriate list
+        if (ownerType === 'resident') {
+            loadResidents();
+        } else {
+            loadGuests();
+        }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error saving license plate. Please try again.');
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
     });
 }
 // Add these new functions
@@ -1066,17 +1116,62 @@ function loadUsers() {
     })
     .catch(error => handleError(error));
 }
+function removeResidentCar(residentId, licensePlate) {
+    if (!confirm(`Are you sure you want to remove the license plate "${licensePlate}" for Resident ID ${residentId}?`)) {
+        return;
+    }
+
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+    fetch(`/admin/resident/${residentId}/car/${encodeURIComponent(licensePlate)}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': getCsrfToken()
+        },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to remove car');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showFlashMessage('Car removed successfully', 'success');
+        loadResidents(); // Refresh the residents list
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
+}
 
 function loadResidents() {
     document.getElementById('contentTitle').textContent = 'Residents';
-    fetch('/admin/residents', {
+    const contentBody = document.getElementById('contentBody');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+    fetch('/admin/residents?' + new Date().getTime(), {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
     .then(data => {
-        const tbody = document.getElementById('contentBody');
-        tbody.innerHTML = `
+        console.log('Residents data:', data);
+        contentBody.innerHTML = ''; // Clear existing content
+        contentBody.innerHTML = `
             <div class="mb-4 flex justify-between items-center">
                 <input type="text" id="residentSearch" placeholder="Search residents..." 
                     class="w-1/3 p-2 bg-gray-700 border-transparent rounded-md text-white focus:border-primary-500">
@@ -1141,8 +1236,12 @@ function loadResidents() {
                                 <h4 class="text-sm font-medium text-gray-300 mb-1">Cars</h4>
                                 <div class="space-y-1">
                                     ${resident.cars.map(car => `
-                                        <div class="text-sm text-gray-400 bg-gray-800 rounded p-2">
-                                            ${car.license_plate}
+                                        <div class="flex justify-between items-center text-sm text-gray-400 bg-gray-800 rounded p-2">
+                                            <span>${car.license_plate}</span>
+                                            <button onclick="removeResidentCar(${resident.id}, '${car.license_plate}')"
+                                                class="text-red-400 hover:text-red-300 text-xs">
+                                                Remove
+                                            </button>
                                         </div>
                                     `).join('') || '<p class="text-sm text-gray-400">No cars registered</p>'}
                                 </div>
@@ -1169,17 +1268,22 @@ function loadResidents() {
             </div>
         `;
 
-        // Add search functionality
         document.getElementById('residentSearch').addEventListener('input', function(e) {
             const searchText = e.target.value.toLowerCase();
-            const cards = document.querySelectorAll('.grid > div');
+            const cards = contentBody.querySelectorAll('.grid > div');
             cards.forEach(card => {
                 const text = card.textContent.toLowerCase();
                 card.style.display = text.includes(searchText) ? '' : 'none';
             });
         });
     })
-    .catch(error => handleError(error));
+    .catch(error => {
+        console.error('Error loading residents:', error);
+        handleError(error);
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
 }
 // Add this function to handle invitation creation
 function addInvitation(guestId, guestName) {
@@ -1202,169 +1306,164 @@ function addInvitation(guestId, guestName) {
     loadGuests();
     openModal('addInvitationModal');
 }
+function removeGuestCar(guestId) {
+    if (!confirm(`Are you sure you want to remove the car for Guest ID ${guestId}?`)) {
+        return;
+    }
 
-function loadGuests() {
-        document.getElementById('contentTitle').textContent = 'Guests';
-        fetch('/admin/guests', {
-            method: 'GET',
-            credentials: 'include'
-        })
-        .then(response => {
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            return response.json();
-        })
-        .then(data => {
-            const tbody = document.getElementById('contentBody');
-            tbody.innerHTML = `
-                <div class="mb-4 flex justify-between items-center">
-                    <input type="text" id="guestSearch" placeholder="Search guests..." 
-                        class="w-1/3 p-2 bg-gray-700 border-transparent rounded-md text-white focus:border-primary-500">
-                    <button onclick="openModal('addGuestModal')" 
-                        class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
-                        Add New Guest
-                    </button>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${data.guests ? data.guests.map(guest => `
-                        <div class="bg-gray-700 rounded-lg overflow-hidden shadow-lg">
-                            <div class="p-4">
-                                <div class="flex items-start justify-between mb-4">
-                                    <div class="flex items-center space-x-4">
-                                        <!-- Guest Image -->
-                                        <div class="w-16 h-16 rounded-full overflow-hidden bg-gray-600">
-                                            ${guest.face_image ? 
-                                                `<img src="data:image/jpeg;base64,${guest.face_image}" 
-                                                    class="w-full h-full object-cover" alt="${guest.name}"/>` :
-                                                `<svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8c0 2.208-1.79 4-3.998 4-2.208 0-3.998-1.792-3.998-4s1.79-4 3.998-4c2.208 0 3.998 1.792 3.998 4z"/>
-                                                </svg>`
-                                            }
-                                        </div>
-                                        <div>
-                                            <h3 class="text-lg font-medium text-white">${guest.name}</h3>
-                                            <p class="text-sm text-gray-400">ID: ${guest.id}</p>
-                                            <p class="text-sm text-gray-400">Added: ${new Date(guest.created_at).toLocaleDateString()}</p>
-                                        </div>
-                                    </div>
-                                    <!-- Status Badge -->
-                                    ${guest.current_invitation ? `
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
-                                            ${guest.current_invitation.status === 'ALLOWED' ? 
-                                            'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
-                                            ${guest.current_invitation.status}
-                                        </span>
-                                    ` : `
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-900 text-red-200">
-                                            No Active Invitation
-                                        </span>
-                                    `}
-                                </div>
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
-                                <!-- Resident Info -->
-                                <div class="bg-gray-800 rounded p-3 mb-3">
-                                    <h4 class="text-sm font-medium text-gray-300 mb-2">Resident Information</h4>
-                                    ${guest.resident ? `
-                                        <div class="space-y-2">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <p class="text-sm text-gray-400">Name: ${guest.resident.name}</p>
-                                                    <p class="text-sm text-gray-400">Email: ${guest.resident.email}</p>
-                                                </div>
-                                                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-900 text-blue-200">
-                                                    Resident ID: ${guest.resident.id}
-                                                </span>
-                                            </div>
-                                            <div class="mt-2">
-                                                <p class="text-sm font-medium text-gray-300">Homes:</p>
-                                                <div class="grid grid-cols-1 gap-1 mt-1">
-                                                    ${guest.resident.homes.map(home => `
-                                                        <div class="bg-gray-700/50 rounded p-2 text-sm">
-                                                            <div class="flex justify-between items-center">
-                                                                <span class="text-gray-300">
-                                                                    Section ${home.section} - ${home.number}
-                                                                </span>
-                                                                <span class="text-gray-400">
-                                                                    Apt: ${home.apartment}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    `).join('') || '<p class="text-sm text-gray-400">No homes registered</p>'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ` : '<p class="text-sm text-gray-400">No resident assigned</p>'}
-                                </div>
-
-                                <!-- Invitation Details -->
-                                <div class="bg-gray-800 rounded p-3 mb-3">
-                                    <div class="flex justify-between items-center mb-2">
-                                        <h4 class="text-sm font-medium text-gray-300">Invitations</h4>
-                                        <button onclick="viewAllInvitations(${guest.id})" 
-                                            class="text-xs text-blue-400 hover:text-blue-300">
-                                            View All Invitations
-                                        </button>
-                                    </div>
-                                    ${guest.current_invitation ? `
-                                        <div class="bg-gray-700/50 rounded p-2">
-                                            <div class="flex justify-between items-center">
-                                                <div>
-                                                    <p class="text-sm text-gray-300">Current Invitation</p>
-                                                    <p class="text-xs text-gray-400">
-                                                        Valid until: ${new Date(guest.current_invitation.end_date).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                                <span class="px-2 py-1 text-xs font-semibold rounded-full 
-                                                    ${guest.current_invitation.status === 'ALLOWED' ? 
-                                                    'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
-                                                    ${guest.current_invitation.status}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ` : '<p class="text-sm text-gray-400">No active invitation</p>'}
-                                </div>
-
-                                <!-- Actions -->
-                                <div class="flex justify-end space-x-2 mt-4">
-                                    <button onclick="editGuest(${JSON.stringify(guest)})"
-                                        class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-                                        Edit
-                                    </button>
-                                    <button onclick="addFaceData('guest', ${guest.id}, '${guest.name}', '${guest.resident ? guest.resident.email : 'N/A'}')"
-                                        class="px-3 py-1 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700">
-                                        Update Face
-                                    </button>
-                                    <button onclick="addInvitation(${guest.id}, '${guest.name}')"
-                                        class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">
-                                        ${guest.current_invitation ? 'New Invitation' : 'Add Invitation'}
-                                    </button>
-                                    <button onclick="viewGuestHistory(${guest.id})"
-                                        class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700">
-                                        History
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('') : '<p class="text-center text-gray-400">No guests found</p>'}
-                </div>
-            `;
-
-            // Add search functionality
-            const searchInput = document.getElementById('guestSearch');
-            if (searchInput) {
-                searchInput.addEventListener('input', function(e) {
-                    const searchText = e.target.value.toLowerCase();
-                    const cards = document.querySelectorAll('.grid > div');
-                    cards.forEach(card => {
-                        const text = card.textContent.toLowerCase();
-                        card.style.display = text.includes(searchText) ? '' : 'none';
-                    });
-                });
-            }
-        })
-        .catch(error => handleError(error));
+    fetch(`/admin/guest/${guestId}/car`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': getCsrfToken()
+        },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to remove guest car');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showFlashMessage('Guest car removed successfully', 'success');
+        loadGuests(); // Refresh the guests list
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
 }
 
+function loadGuests() {
+    document.getElementById('contentTitle').textContent = 'Guests';
+    const contentBody = document.getElementById('contentBody');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
+    fetch('/admin/guests?' + new Date().getTime(), {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Guests data:', data); // Debug response
+        contentBody.innerHTML = ''; // Clear existing content
+        contentBody.innerHTML = `
+            <div class="mb-4 flex justify-between items-center">
+                <input type="text" id="guestSearch" placeholder="Search guests..." 
+                    class="w-1/3 p-2 bg-gray-700 border-transparent rounded-md text-white focus:border-primary-500">
+                <button onclick="openModal('addGuestModal')" 
+                    class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+                    Add New Guest
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${data.guests ? data.guests.map(guest => `
+                    <div class="bg-gray-700 rounded-lg overflow-hidden shadow-lg">
+                        <div class="p-4">
+                            <div class="flex items-start justify-between mb-4">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-16 h-16 rounded-full overflow-hidden bg-gray-600">
+                                        ${guest.face_image ? 
+                                            `<img src="data:image/jpeg;base64,${guest.face_image}" 
+                                                class="w-full h-full object-cover" alt="${guest.name}"/>` :
+                                            `<svg class="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8c0 2.208-1.79 4-3.998 4-2.208 0-3.998-1.792-3.998-4s1.79-4 3.998-4c2.208 0 3.998 1.792 3.998 4z"/>
+                                            </svg>`
+                                        }
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-medium text-white">${guest.name}</h3>
+                                        <p class="text-sm text-gray-400">ID: ${guest.id}</p>
+                                        <p class="text-sm text-gray-400">Added: ${new Date(guest.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                ${guest.current_invitation ? `
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                        ${guest.current_invitation.status === 'ALLOWED' ? 
+                                        'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'}">
+                                        ${guest.current_invitation.status}
+                                    </span>
+                                ` : `
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-900 text-red-200">
+                                        No Active Invitation
+                                    </span>
+                                `}
+                            </div>
+                            <div class="bg-gray-800 rounded p-3 mb-3">
+                                <h4 class="text-sm font-medium text-gray-300 mb-2">Car Information</h4>
+                                ${guest.license_plate ? `
+                                    <div class="flex justify-between items-center bg-gray-700/50 rounded p-2">
+                                        <p class="text-sm text-gray-300">${guest.license_plate}</p>
+                                        <button onclick="removeGuestCar(${guest.id})"
+                                            class="text-red-400 hover:text-red-300 text-xs">
+                                            Remove
+                                        </button>
+                                    </div>
+                                ` : '<p class="text-sm text-gray-400">No car registered</p>'}
+                            </div>
+                            <!-- Other sections (Resident Info, Invitations, Actions) unchanged -->
+                            <div class="flex justify-end space-x-2 mt-4">
+                                <button onclick="editGuest(${JSON.stringify(guest)})"
+                                    class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                    Edit
+                                </button>
+                                <button onclick="addFaceData('guest', ${guest.id}, '${guest.name}', '${guest.resident ? guest.resident.email : 'N/A'}')"
+                                    class="px-3 py-1 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700">
+                                    Update Face
+                                </button>
+                                <button onclick="addInvitation(${guest.id}, '${guest.name}')"
+                                    class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                                    ${guest.current_invitation ? 'New Invitation' : 'Add Invitation'}
+                                </button>
+                                <button onclick="manageGuestCar(${guest.id}, '${guest.name}', '${guest.license_plate || ''}')"
+                                    class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700">
+                                    ${guest.license_plate ? 'Edit Car' : 'Add Car'}
+                                </button>
+                                <button onclick="viewGuestHistory(${guest.id})"
+                                    class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700">
+                                    History
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('') : '<p class="text-center text-gray-400">No guests found</p>'}
+            </div>
+        `;
+
+        const searchInput = document.getElementById('guestSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchText = e.target.value.toLowerCase();
+                const cards = contentBody.querySelectorAll('.grid > div');
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(searchText) ? '' : 'none';
+                });
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error loading guests:', error);
+        handleError(error);
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
+}
 // Guest History Modal and Function
 function viewGuestHistory(guestId) {
     fetch(`/admin/guest/${guestId}/history`, {
@@ -1583,47 +1682,52 @@ document.getElementById('editUserForm').addEventListener('submit', function(e) {
 document.getElementById('recognizePlateForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = new FormData(this);
-    
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
     fetch('/api/recognize', {
         method: 'POST',
         headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         credentials: 'include',
         body: formData
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to recognize plate');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.status === 'success') {
-            console.log(data);
-            // Show stage 2
+            // Hide stage 1, show stage 2
             document.getElementById('carStage1').classList.add('hidden');
             document.getElementById('carStage2').classList.remove('hidden');
-            
+
             // Display debug image
             document.getElementById('debugImageContainer').innerHTML = 
                 `<img src="data:image/jpeg;base64,${data.debug_image}" class="w-full h-full object-contain" alt="Debug Image">`;
-            
-            // Set detected text
+
+            // Set license plate text (join cleaned texts)
             const licensePlateInput = document.getElementById('licensePlateText');
-            licensePlateInput.value = data.texts;
-            licensePlateInput.style.direction = 'rtl'; // Ensure RTL for Arabic text
-            
-            // Display raw results
-            const rawResultsDiv = document.getElementById('rawResults');
-            if (rawResultsDiv) {
-                rawResultsDiv.innerHTML = data.raw_result.map(result => 
-                    `<div class="mb-1">Text: ${result[0]} - Confidence: ${(result[1] * 100).toFixed(2)}%</div>`
-                ).join('');
-            }
+            licensePlateInput.value = data.texts.join(' ');  // Join array of cleaned texts
+            licensePlateInput.style.direction = 'rtl';  // Right-to-left for Arabic
+
+            // Optional: Log raw results for debugging
+            console.log('Raw OCR results:', data.raw_result);
         } else {
-            alert(data.error || 'Error processing image');
+            showFlashMessage(data.error || 'No text detected', 'error');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error processing image. Please try again.');
+        showFlashMessage('Error recognizing plate: ' + error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
     });
 });
-
 document.getElementById('addHomeForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = {
@@ -1990,6 +2094,55 @@ function addFaceData(type, id) {
 
     openModal('addFaceModal');
 }
+// Manage Guest Car
+function manageGuestCar(guestId, guestName, currentLicensePlate) {
+    const form = document.getElementById('manageGuestCarForm');
+    form.reset();
+    form.guest_id.value = guestId;
+    document.getElementById('guestCarName').value = guestName;
+    form.license_plate.value = currentLicensePlate || '';
+    document.getElementById('manageGuestCarModalTitle').textContent = currentLicensePlate ? `Edit Car for ${guestName}` : `Add Car for ${guestName}`;
+    openModal('manageGuestCarModal');
+}
+// Handle Guest Car Form Submission
+document.getElementById('manageGuestCarForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const guestId = this.guest_id.value;
+    const licensePlate = this.license_plate.value;
+
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+    fetch(`/admin/guest/${guestId}/car`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        },
+        credentials: 'include',
+        body: JSON.stringify({ license_plate: licensePlate })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to update guest car');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showFlashMessage('Guest car updated successfully', 'success');
+        closeModal('manageGuestCarModal');
+        loadGuests(); // Refresh the guests list
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showFlashMessage(error.message, 'error');
+    })
+    .finally(() => {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    });
+});
 // Initial Load
 document.addEventListener('DOMContentLoaded', function() {
     fetch('/auth/check_token', {

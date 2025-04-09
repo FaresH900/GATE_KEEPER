@@ -843,29 +843,108 @@ def add_car():
 def add_guest_car(guest_id):
     current_user = User.query.get(get_jwt_identity())
     if not current_user or current_user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {get_jwt_identity()}")
         return jsonify({'error': 'Unauthorized'}), 403
 
     data = request.get_json()
     license_plate = data.get('license_plate')
 
     if not license_plate:
+        logger.error("License plate is required")
         return jsonify({'error': 'License plate is required'}), 400
 
     guest = Guest.query.get(guest_id)
     if not guest:
+        logger.info(f"Guest ID {guest_id} not found")
         return jsonify({'error': 'Guest not found'}), 404
 
     try:
-        # Here you might want to add the car to a GuestCar table
-        # For now, we'll just return success
+        # Check if the license plate is already in use by another guest or resident
+        existing_guest = Guest.query.filter(Guest.license_plate == license_plate, Guest.id != guest_id).first()
+        existing_car = Car.query.filter_by(license_plate=license_plate).first()
+        if existing_guest or existing_car:
+            logger.warning(f"License plate {license_plate} already registered")
+            return jsonify({'error': 'License plate already registered'}), 400
+
+        # Update the guest's license plate
+        guest.license_plate = license_plate
+        db.session.commit()
+
+        logger.info(f"License plate {license_plate} added to guest ID {guest_id}")
         return jsonify({
             'status': 'success',
             'message': 'Guest car registered successfully',
             'guest_id': guest_id,
+            'license_plate': guest.license_plate
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error adding guest car: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/resident/<int:resident_id>/car/<string:license_plate>', methods=['DELETE'])
+@jwt_required()
+def remove_resident_car(resident_id, license_plate):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {get_jwt_identity()}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    resident = Resident.query.get(resident_id)
+    if not resident:
+        logger.info(f"Resident ID {resident_id} not found")
+        return jsonify({'error': 'Resident not found'}), 404
+
+    car = Car.query.filter_by(resident_id=resident_id, license_plate=license_plate).first()
+    if not car:
+        logger.info(f"Car with license plate {license_plate} not found for resident ID {resident_id}")
+        return jsonify({'error': 'Car not found'}), 404
+
+    try:
+        db.session.delete(car)
+        db.session.commit()
+        logger.info(f"Car {license_plate} removed for resident ID {resident_id}")
+        return jsonify({
+            'status': 'success',
+            'message': 'Car removed successfully',
+            'resident_id': resident_id,
             'license_plate': license_plate
         }), 200
     except Exception as e:
-        logger.exception("Error adding guest car")
+        db.session.rollback()
+        logger.exception(f"Error removing car: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/guest/<int:guest_id>/car', methods=['DELETE'])
+@jwt_required()
+def remove_guest_car(guest_id):
+    current_user = User.query.get(get_jwt_identity())
+    if not current_user or current_user.role != 'ADMIN':
+        logger.info(f"Unauthorized access attempt by user ID: {get_jwt_identity()}")
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    guest = Guest.query.get(guest_id)
+    if not guest:
+        logger.info(f"Guest ID {guest_id} not found")
+        return jsonify({'error': 'Guest not found'}), 404
+
+    if not guest.license_plate:
+        logger.info(f"No car registered for guest ID {guest_id}")
+        return jsonify({'error': 'No car registered for this guest'}), 404
+
+    try:
+        guest.license_plate = None
+        db.session.commit()
+        logger.info(f"Car removed for guest ID {guest_id}")
+        return jsonify({
+            'status': 'success',
+            'message': 'Guest car removed successfully',
+            'guest_id': guest_id
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Error removing guest car: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
