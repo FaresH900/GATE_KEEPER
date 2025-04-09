@@ -71,13 +71,15 @@ def recognize_plate():
             raise ValueError(f"Failed to load debug image from {debug_filepath}")
         _, buffer = cv2.imencode('.jpg', debug_img)
         debug_image_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        final = f"{cleaned_texts[1][::-1]}{cleaned_texts[0]}"
+        logger.info(f"Plate recognition successful: {final}")
 
-        logger.info(f"Plate recognition successful: {cleaned_texts}")
         return jsonify({
             'status': 'success',
-            'texts': cleaned_texts,  # Return list
+            'texts': final,  # Return cleaned texts
             'debug_image': debug_image_base64,
-            'raw_result': detected_texts
+            'raw_result': detected_texts  # Full text with probabilities
         }), 200
 
     except RuntimeError as e:
