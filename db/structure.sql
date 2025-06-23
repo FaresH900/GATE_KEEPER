@@ -53,9 +53,9 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Insert users with bcrypt hashed password (password123)
 INSERT INTO users (role, name, email, password_hash) 
 VALUES 
-    ('admin', 'Admin User', 'hossam@admin.com', '$2b$12$ctJiz1HyBMYbNxFs9HRoOe0Db53Q.pm7lipoH38g5tJF8Mp5CPBQq'),
-    ('gatekeeper', 'Gatekeeper User', 'hossam@keeper.com', '$2b$12$ctJiz1HyBMYbNxFs9HRoOe0Db53Q.pm7lipoH38g5tJF8Mp5CPBQq'),
-    ('resident', 'Resident User', 'hossam@resident.com', '$2b$12$ctJiz1HyBMYbNxFs9HRoOe0Db53Q.pm7lipoH38g5tJF8Mp5CPBQq');
+    ('admin', 'Admin User', 'fares@admin.com', '$2b$12$ctJiz1HyBMYbNxFs9HRoOe0Db53Q.pm7lipoH38g5tJF8Mp5CPBQq'),
+    ('gatekeeper', 'Gatekeeper User', 'fares@keeper.com', '$2b$12$ctJiz1HyBMYbNxFs9HRoOe0Db53Q.pm7lipoH38g5tJF8Mp5CPBQq'),
+    ('resident', 'Resident User', 'fares@resident.com', '$2b$12$ctJiz1HyBMYbNxFs9HRoOe0Db53Q.pm7lipoH38g5tJF8Mp5CPBQq');
 
 -- Get the resident's user ID
 SET @resident_user_id = (SELECT id FROM users WHERE email = 'hossam@resident.com');
